@@ -1,22 +1,48 @@
-'use server';
-import { randomUUID } from 'node:crypto';
-import { cookies } from 'next/headers';
-import { BRANCHES, type PublicSetupState } from '@/types/game';
-import { GameRuleError, type SetupCommand } from '@/lib/characterGenerator';
-import { isUuid, mutateSetup, SESSION_COOKIE } from '@/lib/server/setupStore';
-
-export type SetupResult = { ok: true; state: PublicSetupState } | { ok: false; error: string };
-export async function setupAction(command: SetupCommand, revision: number, requestId: string): Promise<SetupResult> {
-  if (!command || !['BEGIN', 'REROLL', 'CONFIRM'].includes(command.type) || (command.type === 'BEGIN' && !BRANCHES.includes(command.branch))) return { ok: false, error: 'Nhánh phát triển không hợp lệ.' };
-  const cookie = cookies().get(SESSION_COOKIE)?.value;
-  const session = isUuid(cookie) ? cookie : randomUUID();
+"use server";
+import { BRANCHES, type PublicSetupState } from "@/types/game";
+import { isGameRuleError, type SetupCommand } from "@/lib/characterGenerator";
+import { requireUser } from "@/lib/server/auth";
+import { gameRepository } from "@/lib/server/backend";
+import { publicState } from "@/lib/publicState";
+export type SetupResult =
+  | { ok: true; state: PublicSetupState }
+  | { ok: false; error: string };
+export async function setupAction(
+  command: SetupCommand,
+  revision: number,
+  requestId: string,
+): Promise<SetupResult> {
+  const user = await requireUser();
+  if (
+    !command ||
+    !["BEGIN", "REROLL", "CONFIRM"].includes(command.type) ||
+    (command.type === "BEGIN" && !BRANCHES.includes(command.branch)) ||
+    !Number.isSafeInteger(revision) ||
+    revision < 0 ||
+    !isUuid(requestId)
+  )
+    return { ok: false, error: "Yêu cầu không hợp lệ." };
   try {
-    const state = await mutateSetup(session, revision, requestId, command);
-    cookies().set(SESSION_COOKIE, session, { httpOnly: true, sameSite: 'lax', secure: process.env.COOKIE_SECURE === 'true', path: '/', maxAge: 60 * 60 * 24 * 365 });
-    return { ok: true, state };
+    return {
+      ok: true,
+      state: publicState(
+        await gameRepository().setup(user.id, command, revision, requestId),
+      ),
+    };
   } catch (error) {
-    if (error instanceof GameRuleError) return { ok: false, error: error.message };
-    console.error('Character setup failed', error instanceof Error ? error.message : 'Unknown error');
-    return { ok: false, error: 'Không thể lưu thân phận. Vui lòng thử lại.' };
+    return {
+      ok: false,
+      error: isGameRuleError(error)
+        ? error.message
+        : "Không thể lưu thân phận. Vui lòng thử lại.",
+    };
   }
+}
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
 }

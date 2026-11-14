@@ -1,9 +1,18 @@
-export const BRANCHES = ['CIVIL', 'MILITARY', 'INNER_COURT', 'HAREM'] as const;
+export const BRANCHES = ["CIVIL", "MILITARY", "INNER_COURT", "HAREM"] as const;
 export type Branch = (typeof BRANCHES)[number];
-export type Origin = 'COMMONER' | 'SCHOLAR_FAMILY' | 'NOBLE_CLAN' | 'FALLEN_CLAN';
-export type CharacterStatus = 'DRAFT' | 'ACTIVE' | 'DECEASED' | 'ARCHIVED';
+export type Origin =
+  | "COMMONER"
+  | "SCHOLAR_FAMILY"
+  | "NOBLE_CLAN"
+  | "FALLEN_CLAN";
+export type CharacterStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "SEVERELY_ILL"
+  | "DECEASED"
+  | "ARCHIVED";
 export type RankTier = 1 | 2 | 3 | 4 | 5;
-export type LongTermStat = 'int' | 'rep' | 'fav' | 'cha';
+export type LongTermStat = "int" | "rep" | "fav" | "cha";
 export type StatKey = keyof CharacterStats;
 
 export interface Account {
@@ -28,8 +37,8 @@ export interface CharacterStats {
 }
 
 export type PromotionCondition =
-  | { stat: Exclude<StatKey, 'suspicion'>; operator: '>='; value: number }
-  | { stat: 'suspicion'; operator: '<='; value: number };
+  | { stat: Exclude<StatKey, "suspicion">; operator: ">="; value: number }
+  | { stat: "suspicion"; operator: "<="; value: number };
 
 export interface PromotionRequirements {
   characterId: string;
@@ -47,6 +56,10 @@ export interface Character extends CharacterStats {
   rankId: string;
   age: number;
   birthGameYear: number;
+  startAge: number;
+  startGameYear: number;
+  treatmentsRemaining: number;
+  actionLocked: boolean;
   status: CharacterStatus;
   suspicionFloor: number;
   promotionRequirements: PromotionRequirements | null;
@@ -80,13 +93,20 @@ export interface Season {
   id: string;
   name: string;
   scenarioCode: string;
-  status: 'ACTIVE' | 'ENDED';
+  status: "ACTIVE" | "ENDED";
   seasonStartTimestamp: string;
   endedAt: string | null;
   fictional: true;
 }
 
-export type EventKind = 'NORMAL' | 'RARE' | 'DANGEROUS' | 'GREAT_CALAMITY' | 'MAIN_STORY' | 'COURT_WIDE' | 'PVP';
+export type EventKind =
+  | "NORMAL"
+  | "RARE"
+  | "DANGEROUS"
+  | "GREAT_CALAMITY"
+  | "MAIN_STORY"
+  | "COURT_WIDE"
+  | "PVP";
 export interface EventChoice {
   id: string;
   label: string;
@@ -101,7 +121,7 @@ export interface Event {
   kind: EventKind;
   title: string;
   description: string;
-  status: 'PENDING' | 'RESOLVED' | 'EXPIRED';
+  status: "PENDING" | "RESOLVED" | "EXPIRED";
   choices: EventChoice[];
   expiresAt: string | null;
   resolvedAt: string | null;
@@ -112,9 +132,9 @@ export interface NPC {
   seasonId: string;
   name: string;
   title: string;
-  faction: 'EMPEROR' | 'EMPRESS_DOWAGER' | 'PRINCE' | 'GRAND_TUTOR' | 'NEUTRAL';
+  faction: "EMPEROR" | "EMPRESS_DOWAGER" | "PRINCE" | "GRAND_TUTOR" | "NEUTRAL";
   rankId: string | null;
-  status: 'ACTIVE' | 'DECEASED' | 'DEPOSED';
+  status: "ACTIVE" | "DECEASED" | "DEPOSED";
   fictional: true;
 }
 
@@ -125,7 +145,7 @@ export interface SetupState {
   processedRequests: string[];
 }
 /** The hidden stat never crosses the server/client boundary. */
-export type PublicCharacter = Omit<Character, 'suspicion' | 'suspicionFloor'>;
+export type PublicCharacter = Omit<Character, "suspicion" | "suspicionFloor">;
 export interface PublicSetupState {
   account: Account;
   character: PublicCharacter | null;
