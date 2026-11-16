@@ -17,12 +17,38 @@ export function publicState(state: SetupState): PublicSetupState {
   void suspicionFloor;
   return { account: state.account, character, revision: state.revision };
 }
+import {
+  evaluatePromotionEligibility,
+  promotionWorldTime,
+  publicPromotion,
+} from "./promotionEligibility";
+import { ACTIONS } from "@/config/actions";
+import { actionLockReason } from "./actionProcessor";
 export function gameView(state: RuntimeState): GameView {
   return {
     ...publicState(state),
     season: state.season,
     serverNow: state.serverNow,
     usage: state.usage,
+    meritUsedToday: state.meritUsedToday ?? 0,
+    promotion: state.character
+      ? publicPromotion(
+          evaluatePromotionEligibility(
+            state.character,
+            state.character.promotionRequirements,
+            promotionWorldTime(
+              state.serverNow,
+              Date.parse(state.season.seasonStartTimestamp),
+            ),
+          ),
+        )
+      : null,
+    actionLocks: Object.fromEntries(
+      Object.values(ACTIONS).map((a) => [
+        a.code,
+        actionLockReason(state, a.code),
+      ]),
+    ) as GameView["actionLocks"],
     suspicionWarning: (state.character?.suspicion ?? 0) >= 80,
   };
 }

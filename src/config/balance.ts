@@ -15,6 +15,7 @@ export const LOG_PAGE_SIZE = 20;
 /** TEMP — deliberately centralized; no balance values in the processor. */
 export const ACTION_BALANCE = {
   STUDY: {
+    meritGain: 1,
     apCost: 1,
     silverCost: 0,
     hpCost: 0,
@@ -22,6 +23,7 @@ export const ACTION_BALANCE = {
     dailyCap: 5,
   },
   SOCIALIZE: {
+    meritGain: 1,
     apCost: 1,
     silverCost: 2,
     hpCost: 0,
@@ -29,6 +31,7 @@ export const ACTION_BALANCE = {
     dailyCap: 4,
   },
   AUDIENCE: {
+    meritGain: 2,
     apCost: 1,
     silverCost: 0,
     hpCost: 0,
@@ -36,6 +39,7 @@ export const ACTION_BALANCE = {
     dailyCap: 3,
   },
   ETIQUETTE: {
+    meritGain: 1,
     apCost: 1,
     silverCost: 0,
     hpCost: 0,
@@ -43,14 +47,23 @@ export const ACTION_BALANCE = {
     dailyCap: 4,
   },
   WORK: {
+    meritGain: 2,
     apCost: 1,
     silverCost: 0,
     hpCost: 12,
     gains: { characterSilver: 15 },
     dailyCap: 8,
   },
-  REST: { apCost: 1, silverCost: 0, hpCost: 0, gains: { hp: 20 }, dailyCap: 5 },
+  REST: {
+    meritGain: 0,
+    apCost: 1,
+    silverCost: 0,
+    hpCost: 0,
+    gains: { hp: 20 },
+    dailyCap: 5,
+  },
   RUMOR: {
+    meritGain: 0,
     apCost: 1,
     silverCost: 10,
     hpCost: 0,
@@ -58,10 +71,52 @@ export const ACTION_BALANCE = {
     dailyCap: 3,
   },
   TREAT: {
+    meritGain: 0,
     apCost: 1,
     silverCost: 0,
     hpCost: 0,
     gains: { hp: 10 },
     dailyCap: 5,
   },
+  EXAM: {
+    meritGain: 0,
+    apCost: 2,
+    silverCost: 0,
+    hpCost: 3,
+    gains: {},
+    dailyCap: 2,
+  },
+} as const;
+
+/** TEMP — promotion/exam balance, shared by the processor and profile. */
+export const TENURE_DAYS_BY_TIER = {
+  1: 30,
+  2: 60,
+  3: 120,
+  4: 240,
+  5: 360,
+} as const;
+export const BRANCH_TENURE_MULTIPLIER = {
+  CIVIL: 1.0,
+  MILITARY: 1.0,
+  INNER_COURT: 1.0,
+  HAREM: 1.0,
+} as const;
+export const MERIT_REQUIRED_BY_TIER = {
+  1: 10,
+  2: 30,
+  3: 70,
+  4: 150,
+  5: 300,
+} as const;
+export const MERIT_DAILY_CAP = 8;
+export const EXAM_VALID_GAME_DAYS = 60;
+export const EXAM_BALANCE = {
+  baseProbability: 0.35,
+  intDivisor: 2000,
+  hpDivisor: 400,
+  minProbability: 0.2,
+  maxProbability: 0.95,
+  fatiguePenalty: 0.3,
+  fatiguedMinimum: 0.05,
 } as const;

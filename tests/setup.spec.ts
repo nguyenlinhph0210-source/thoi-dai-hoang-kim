@@ -200,3 +200,63 @@ test("mobile navigation, empty logs and rank placeholder; no overflow", async ({
     fullPage: true,
   });
 });
+
+test("promotion profile: locked three v1 conditions, merit updates, exam locked and requirements survive another device", async ({
+  page,
+  context,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const email = await register(page);
+  await createLife(page);
+  await expect(
+    page.getByRole("heading", { name: "Tiến trình thăng phẩm", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".promotion-condition")).toHaveCount(3);
+  await expect(page.getByTestId("action-EXAM")).toBeDisabled();
+  const original = (await (await page.request.get("/api/game")).json()).state;
+  expect(original.character.promotionRequirements.tableVersion).toBe("v1");
+  expect(original.promotion.seatAvailable).toBe("UNKNOWN");
+  for (const c of original.promotion.conditions)
+    if (c.stat === "suspicion") expect(c.current).toBeNull();
+  const rejected = await page.request.post("/api/actions", {
+    data: { code: "EXAM", key: randomUUID() },
+  });
+  expect(rejected.status()).toBe(400);
+  await page.getByTestId("action-STUDY").click();
+  await expect(page.getByTestId("ap-balance")).toHaveText("9/15 AP");
+  const updated = (await (await page.request.get("/api/game")).json()).state;
+  expect(updated.character.merit).toBe(1);
+  expect(updated.character.promotionRequirements).toEqual(
+    original.character.promotionRequirements,
+  );
+  await page.reload();
+  await expect(page.locator(".promotion-condition")).toHaveCount(3);
+  await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+  await expect(page).toHaveURL(/\/login/);
+  const other = await context.browser()!.newContext();
+  const device = await other.newPage();
+  await device.goto("http://127.0.0.1:3100/login");
+  await device.getByLabel("Email", { exact: true }).fill(email);
+  await device.getByLabel("Mật khẩu", { exact: true }).fill(password);
+  await device.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+  await expect(device.getByTestId("ap-balance")).toHaveText("9/15 AP");
+  const restored = (
+    await (await device.request.get("http://127.0.0.1:3100/api/game")).json()
+  ).state;
+  expect(restored.character.promotionRequirements).toEqual(
+    original.character.promotionRequirements,
+  );
+  await device.setViewportSize({ width: 390, height: 844 });
+  await device
+    .getByRole("navigation", { name: "Điều hướng chính" })
+    .getByRole("button", { name: "Hồ sơ", exact: true })
+    .click();
+  await expect(
+    device.getByRole("heading", { name: "Tiến trình thăng phẩm", exact: true }),
+  ).toBeVisible();
+  await device.screenshot({
+    path: "/tmp/dai-noi-ky-3a-profile.png",
+    fullPage: true,
+  });
+  await other.close();
+});

@@ -11,6 +11,7 @@ export interface RuntimeState extends SetupState {
   season: Season;
   serverNow: number;
   usage: Partial<Record<ActionCode, number>>;
+  meritUsedToday: number;
 }
 export interface ActionLog {
   id: string;
@@ -27,6 +28,14 @@ export interface ActionLog {
     resonanceMultiplier: number;
   };
   worldTime: WorldTime;
+  meritGained?: number;
+  meritAfter?: number;
+  exam?: {
+    success: boolean;
+    probability: number;
+    targetRankId: string;
+    gameDay: number;
+  };
 }
 export interface ActionResult {
   log: ActionLog;
@@ -41,7 +50,12 @@ export interface GameView extends PublicSetupState {
   season: Season;
   serverNow: number;
   usage: Partial<Record<ActionCode, number>>;
+  meritUsedToday: number;
   suspicionWarning: boolean;
+  actionLocks: Record<ActionCode, string | null>;
+  promotion:
+    | import("@/lib/promotionEligibility").PublicPromotionProgress
+    | null;
 }
 export interface LogPage {
   logs: PublicActionLog[];

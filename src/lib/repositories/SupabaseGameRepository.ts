@@ -9,7 +9,11 @@ import {
 import { getWorldTime } from "@/lib/worldClock";
 import { utc7Date } from "@/lib/ap";
 import { MS_PER_GAME_DAY, LOG_PAGE_SIZE } from "@/config/balance";
-import { processAction } from "@/lib/actionProcessor";
+import {
+  processAction,
+  actionCommitPolicy,
+  actionMessage,
+} from "@/lib/actionProcessor";
 import { ACTIONS, type ActionCode } from "@/config/actions";
 import type { ActionLog, ActionResult, RuntimeState } from "@/types/runtime";
 import type { Season } from "@/types/game";
@@ -44,7 +48,7 @@ export class SupabaseGameRepository implements GameRepository {
       p_account_id: id,
     });
     if (error || !data) this.failure(error?.message ?? "Missing account");
-    return data as RuntimeState;
+    return normalizeState(data as RuntimeState);
   }
   async setup(
     id: string,
@@ -62,7 +66,7 @@ export class SupabaseGameRepository implements GameRepository {
     if (prior.data?.result) {
       if (prior.data.action !== command.type)
         throw new GameRuleError("Mã yêu cầu đã dùng cho thao tác khác.");
-      return prior.data.result as RuntimeState;
+      return normalizeState(prior.data.result as RuntimeState);
     }
     const state = await this.readState(id);
     if (state.revision !== revision)
@@ -94,7 +98,7 @@ export class SupabaseGameRepository implements GameRepository {
       ),
     });
     if (error || !data) this.failure(error?.message ?? "Missing result");
-    return data as RuntimeState;
+    return normalizeState(data as RuntimeState);
   }
   async act(id: string, code: ActionCode, key: string): Promise<ActionResult> {
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -113,7 +117,12 @@ export class SupabaseGameRepository implements GameRepository {
       const state = await this.readState(id);
       let computed: ReturnType<typeof processAction>;
       try {
-        computed = processAction(state, code, randomUUID());
+        computed = processAction(
+          state,
+          code,
+          randomUUID(),
+          () => randomBytes(4).readUInt32BE() / 0x100000000,
+        );
       } catch (error) {
         // A duplicate may have committed after the first ledger read and spent the last AP.
         const replay = await this.db
@@ -133,7 +142,7 @@ export class SupabaseGameRepository implements GameRepository {
       const { state: next, log } = computed;
       const result: ActionResult = {
         log,
-        message: `${ACTIONS[code].name}: đã hoàn thành (−${log.apSpent} AP).`,
+        message: actionMessage(log),
       };
       const a = ACTIONS[code];
       const { data, error } = await this.db.rpc("commit_game_action", {
@@ -142,6 +151,7 @@ export class SupabaseGameRepository implements GameRepository {
         p_key: key,
         p_code: code,
         p_proposal: {
+          policy: actionCommitPolicy(state, code),
           character: next.character,
           result,
           apCost: a.apCost,
@@ -174,4 +184,15 @@ export class SupabaseGameRepository implements GameRepository {
     if (error) this.failure(error.message);
     return (data ?? []).map((row) => (row.result as ActionResult).log);
   }
+}
+
+function normalizeState(state: RuntimeState): RuntimeState {
+  state.meritUsedToday ??= 0;
+  if (state.character) {
+    state.character.merit ??= 0;
+    state.character.rankEnteredAt ??= state.character.confirmedAt;
+    state.character.examPassedForRankId ??= null;
+    state.character.examPassedGameDay ??= null;
+  }
+  return state;
 }

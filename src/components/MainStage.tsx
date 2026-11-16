@@ -14,13 +14,13 @@ import {
   UserRound,
 } from "lucide-react";
 import { ACTIONS, isActionCode, type ActionCode } from "@/config/actions";
-import { AP_CAP, START_REIGN_YEAR } from "@/config/balance";
-import { actionLockReason } from "@/lib/actionProcessor";
+import { AP_CAP, MS_PER_GAME_DAY, START_REIGN_YEAR } from "@/config/balance";
 import { getWorldTime } from "@/lib/worldClock";
 import { msUntilApGrant, utc7Date } from "@/lib/ap";
 import { BRANCH_INFO, RANKS, statLabel } from "@/lib/gameConfig";
 import { logout } from "@/app/login/actions";
-import type { GameView, LogPage, RuntimeState } from "@/types/runtime";
+import type { GameView, LogPage } from "@/types/runtime";
+import PromotionProgress from "./PromotionProgress";
 import PalaceIllustration from "./PalaceIllustration";
 const tabs = [
   { key: "profile", name: "Hồ sơ", icon: UserRound },
@@ -152,9 +152,23 @@ export default function MainStage({
     Date.parse(state.season.seasonStartTimestamp),
   );
   const today = utc7Date(now);
+  const promotionDay = Math.floor(
+    Math.max(0, now - Date.parse(state.season.seasonStartTimestamp)) /
+      MS_PER_GAME_DAY,
+  );
+  const sampledPromotionDay = Math.floor(
+    Math.max(
+      0,
+      state.serverNow - Date.parse(state.season.seasonStartTimestamp),
+    ) / MS_PER_GAME_DAY,
+  );
   useEffect(() => {
-    if (today !== utc7Date(state.serverNow)) void refresh();
-  }, [today, state.serverNow, refresh]);
+    if (
+      today !== utc7Date(state.serverNow) ||
+      promotionDay !== sampledPromotionDay
+    )
+      void refresh();
+  }, [today, state.serverNow, promotionDay, sampledPromotionDay, refresh]);
   const c = state.character!;
   async function act(code: ActionCode) {
     if (busy.current) return;
@@ -223,6 +237,13 @@ export default function MainStage({
           </div>
         ))}
       </div>
+      <PromotionProgress
+        progress={state.promotion}
+        branch={c.branch}
+        lockReason={state.actionLocks.EXAM}
+        pending={sending || !!retry}
+        onExam={() => void act("EXAM")}
+      />
       {state.suspicionWarning && (
         <p className="suspicion-warning" role="status">
           <Shield size={16} /> Tì vết đã nhiều. Hãy cẩn trọng trước những ánh
@@ -265,7 +286,15 @@ export default function MainStage({
                 Năm {START_REIGN_YEAR + log.worldTime.currentGameYear - 1},
                 tháng {log.worldTime.currentGameMonth}, ngày{" "}
                 {log.worldTime.currentGameDay} · −{log.apSpent} AP
+                {log.meritGained ? ` · +${log.meritGained} công trạng` : ""}
               </small>
+              {log.exam && (
+                <p>
+                  {log.exam.success
+                    ? "Khảo hạch thành công"
+                    : "Khảo hạch chưa đạt"}
+                </p>
+              )}
               <p>
                 {statKeys
                   .flatMap((key) => {
@@ -388,49 +417,44 @@ export default function MainStage({
               <h2>Việc trong ngày</h2>
             </div>
             <div className="action-grid">
-              {Object.values(ACTIONS).map((a) => {
-                // Only public fields affect action availability; hidden risks never determine lock text.
-                const reason = actionLockReason(
-                  {
-                    ...state,
-                    processedRequests: [],
-                    character: { ...c, suspicion: 0, suspicionFloor: 0 },
-                  } as RuntimeState,
-                  a.code,
-                );
-                return (
-                  <article
-                    className={`action-card ${reason ? "action-locked" : ""}`}
-                    key={a.code}
-                  >
-                    <div className="action-card-title">
-                      <h3>{a.branchNames?.[c.branch] ?? a.name}</h3>
-                      <span>{a.apCost} AP</span>
-                    </div>
-                    <p>{a.description}</p>
-                    <small>
-                      Còn {Math.max(0, a.dailyCap - (state.usage[a.code] ?? 0))}
-                      /{a.dailyCap} hôm nay
-                      {a.silverCost > 0 ? ` · ${a.silverCost} lượng` : ""}
-                      {a.hpCost > 0 ? ` · ${a.hpCost} thể lực` : ""}
-                    </small>
-                    <button
-                      className="action-button"
-                      data-testid={`action-${a.code}`}
-                      disabled={sending || !!retry || !!reason}
-                      onClick={() => void act(a.code)}
+              {Object.values(ACTIONS)
+                .filter((a) => a.code !== "EXAM")
+                .map((a) => {
+                  const reason = state.actionLocks[a.code];
+                  return (
+                    <article
+                      className={`action-card ${reason ? "action-locked" : ""}`}
+                      key={a.code}
                     >
-                      {sending && requestRef.current?.code === a.code ? (
-                        <Loader2 size={14} className="spin" />
-                      ) : (
-                        <ChevronRight size={14} />
-                      )}
-                      Thực hiện
-                    </button>
-                    {reason && <span className="lock-reason">{reason}</span>}
-                  </article>
-                );
-              })}
+                      <div className="action-card-title">
+                        <h3>{a.branchNames?.[c.branch] ?? a.name}</h3>
+                        <span>{a.apCost} AP</span>
+                      </div>
+                      <p>{a.description}</p>
+                      <small>
+                        Còn{" "}
+                        {Math.max(0, a.dailyCap - (state.usage[a.code] ?? 0))}/
+                        {a.dailyCap} hôm nay
+                        {a.silverCost > 0 ? ` · ${a.silverCost} lượng` : ""}
+                        {a.hpCost > 0 ? ` · ${a.hpCost} thể lực` : ""}
+                      </small>
+                      <button
+                        className="action-button"
+                        data-testid={`action-${a.code}`}
+                        disabled={sending || !!retry || !!reason}
+                        onClick={() => void act(a.code)}
+                      >
+                        {sending && requestRef.current?.code === a.code ? (
+                          <Loader2 size={14} className="spin" />
+                        ) : (
+                          <ChevronRight size={14} />
+                        )}
+                        Thực hiện
+                      </button>
+                      {reason && <span className="lock-reason">{reason}</span>}
+                    </article>
+                  );
+                })}
             </div>
             <p className="stage-muted">
               Đọc trang không tốn AP. Hạn mức theo tài khoản và ngày thực Việt
