@@ -1,10 +1,10 @@
-# ĐẠI NỘI KÝ — Chặng 2 · Nền tảng vận hành
+# ĐẠI NỘI KÝ — Chặng 3A · Điều kiện thăng phẩm
 
 Next.js App Router, TypeScript strict, Tailwind, Lucide và Supabase. Nguồn quy tắc: [AGENTS.md](AGENTS.md). Rà soát Chặng 1, trạng thái thực hiện, toàn bộ giả định/TEMP và checklist Supabase thật: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Chạy local
 
-Node 24.22.1, npm 11. Không thêm dependency mới trong Chặng 2.
+Node 24.22.1, npm 11. Không thêm dependency mới trong Chặng 3A.
 
 ```sh
 npm ci --cache /workspace/.npm-cache
@@ -40,6 +40,7 @@ Auth: email/password, có xử lý email confirmation khi signup chưa trả ses
 1. **Supabase mới:** chạy `supabase/schema.sql` một lần để dựng Chặng 1. **Đã chạy M1:** bỏ qua bước này, không sửa/chạy lại schema cũ.
 2. Chạy riêng [0002_character_ill_status.sql](supabase/migrations/0002_character_ill_status.sql), để enum mới commit.
 3. Chạy [0003_runtime_foundation.sql](supabase/migrations/0003_runtime_foundation.sql).
+4. Chạy [0004_promotion_requirements.sql](supabase/migrations/0004_promotion_requirements.sql). Dự án đã ở Chặng 2 chỉ chạy bước này. Có begin/commit, chạy lại an toàn; không chạy lại 0003 sau 0004 vì sẽ hạ phiên bản RPC.
 
 0002/0003 chạy lại an toàn; không reset AP/ngày grant, mùa hay nhật ký. Migration seed `dai-khanh-thien-nguyen` chỉ nếu chưa có ACTIVE, dùng thời điểm migration làm seasonStart. Nếu có ACTIVE với scenario khác, migration dừng/rollback để bạn quyết định quản trị, không tự kết thúc mùa hiện tại. Giữ nguyên bảng/cột M1; `ap`/`last_ap_grant_date` được đồng bộ với `action_points`/`last_ap_grant_date_utc7`. `freeRerollsLeft` là tên tương thích của freeRerollsRemaining.
 
@@ -68,3 +69,17 @@ Giả định được chọn theo yêu cầu: cộng hưởng cha chồng tần
 ## Phạm vi giao diện
 
 Sau xác nhận vào Sân khấu chính: desktop ba cột, mobile tối đa 448px và bốn tab Hồ sơ/Sân khấu/Quan chế/Nhật ký. Header có niên lịch/AP/countdown nửa đêm Việt Nam. Tám hành động có AP, chi phí, hạn mức và lý do khóa. Nhật ký phân trang 20 dòng, có trạng thái loading/lỗi/rỗng tiếng Việt. Quan chế chỉ “Sắp ra mắt”. Không bổ sung sự kiện, NPC, tử vong/trùng sinh, xếp hạng, PvP hoặc thanh toán trong chặng này.
+
+## Tiến trình thăng phẩm (Chặng 3A)
+
+Bảng chính thức `src/config/promotionBenchmarks.ts` có 52 hàng cho bốn nhánh; giữ các ID M1, tự tính D từ B, kiểm tra tĩnh tầng/ánh xạ/đơn điệu. Giữa các **phẩm mục tiêu** các khoảng tách biệt nghiêm ngặt; hàng khởi đầu không có R nên không so với mục tiêu đầu tiên (Cung tuyển/Mỹ nhân chạm biên theo bảng đã chốt). Phẩm khởi đầu chuẩn không nâng chỉ số. Nếu tương lai kịch bản cho phẩm cao hơn, chỉ nâng bốn chỉ số phát triển lên B-D.
+
+Mỗi bộ v1 gồm A/B cố định và C1/C2/Nghi Kỵ 40/40/20; không có HP/bạc/baseline. R được lưu trong conditions.value và thresholds, table_version=v1, khóa UPDATE bằng trigger; không có API quay lại. Điều kiện legacy giữ nguyên, nhưng HP/bạc lịch sử ngừng tham gia xét. Nghi Kỵ sinh theo tầng mục tiêu và nâng tối thiểu sàn+5, trần100; nếu sàn về sau vượt R thì cảnh báo unreachable, không sửa R. UI chỉ nhận ngưỡng/trạng thái/hint, không nhận current suspicion hoặc floor.
+
+`evaluatePromotionEligibility(character, requirement, promotionWorldTime(serverNow, seasonStart))` là hàm thuần. Tại vị lấy elapsed ngày game từ rank_entered_at, theo tầng hiện tại × hệ số nhánh; merit yêu cầu theo tầng mục tiêu. Ghế là UNKNOWN, eligibleToApply chỉ nghĩa đủ điều kiện cá nhân. Không có thao tác nộp đơn, thăng phẩm, ghế hoặc chuyển nhánh.
+
+Công trạng/action và hạn 8 mỗi tài khoản/ngày Việt Nam nằm trong balance/actions config; credit phần vượt bỏ nhưng hành động vẫn thực hiện. EXAM 2 AP/3 HP/cap2, chỉ mở khi đủ chỉ số/tại vị/merit/không tra xét và điều kiện hành động M2. Server dùng RNG mật mã; tính p theo int/HP **trước chi phí**, lưu kết quả trong cùng giao dịch AP/usage/merit/log. Replay UUID trả nguyên kết quả cũ. Pass có hiệu lực `[ngày đạt, ngày đạt+60)`; fail giữ pass trước, không thay R. Quy tắc nhân quả M2 vẫn áp dụng.
+
+Các giá trị TEMP (tại vị, hệ số nhánh, công trạng, EXAM) ở `src/config/balance.ts`. Chính sách tin cậy được server gửi vào RPC cùng đề xuất; SQL khóa account và đối chiếu lại chỉ số/điều kiện/merit/cap/revision trước ghi. Không nhận policy/chỉ số từ client. Hồ sơ có ba thanh tiến độ, tại vị, merit, hiệu lực khảo hạch và lý do khóa; đồng bộ mỗi ngày game.
+
+Chi tiết mọi giả định, số liệu TEMP và checklist **chưa kiểm chứng trên Supabase thật**: [Chặng 3A trong PROGRESS](docs/PROGRESS.md). Giữ nguyên schema.sql và migration 0002/0003; triển khai 0004 trước code mới. Các hành vi ghế và phiên xét duyệt thuộc Chặng 3B.

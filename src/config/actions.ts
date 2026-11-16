@@ -7,6 +7,7 @@ export interface ActionDefinition {
   branchNames?: Partial<Record<Branch, string>>;
   description: string;
   type: "AUDIENCE" | "NORMAL";
+  meritGain: number;
   apCost: number;
   silverCost: number;
   hpCost: number;
@@ -14,6 +15,14 @@ export interface ActionDefinition {
   dailyCap: number;
 }
 export const ACTIONS: Record<ActionCode, ActionDefinition> = {
+  EXAM: {
+    code: "EXAM",
+    name: "Khảo hạch",
+    description:
+      "Khảo nghiệm năng lực cho phẩm mục tiêu. Thành công có hiệu lực 60 ngày game.",
+    type: "NORMAL",
+    ...ACTION_BALANCE.EXAM,
+  },
   STUDY: {
     code: "STUDY",
     name: "Học kinh sử",

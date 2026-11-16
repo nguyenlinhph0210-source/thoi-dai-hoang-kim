@@ -45,6 +45,7 @@ export interface PromotionRequirements {
   targetRankId: string;
   conditions: [PromotionCondition, PromotionCondition, PromotionCondition];
   generatedAt: string;
+  tableVersion?: "v1" | "legacy";
 }
 
 export interface Character extends CharacterStats {
@@ -65,6 +66,10 @@ export interface Character extends CharacterStats {
   promotionRequirements: PromotionRequirements | null;
   createdAt: string;
   confirmedAt: string | null;
+  rankEnteredAt: string | null;
+  merit: number;
+  examPassedForRankId: string | null;
+  examPassedGameDay: number | null;
 }
 
 export interface Rank {

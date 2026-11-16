@@ -9,7 +9,7 @@ import {
 import { INITIAL_AP, LOG_PAGE_SIZE } from "@/config/balance";
 import { getCharacterAge, getWorldTime } from "@/lib/worldClock";
 import { grantAp, utc7Date } from "@/lib/ap";
-import { processAction } from "@/lib/actionProcessor";
+import { processAction, actionMessage } from "@/lib/actionProcessor";
 import { ACTIONS, type ActionCode } from "@/config/actions";
 import type { RuntimeState, ActionResult, ActionLog } from "@/types/runtime";
 import type { Season } from "@/types/game";
@@ -20,13 +20,18 @@ export class InMemoryGameRepository implements GameRepository {
     string,
     Map<string, Partial<Record<ActionCode, number>>>
   >();
+  private meritDays = new Map<string, Map<string, number>>();
   private requests = new Map<string, Map<string, ActionResult>>();
   private setupRequests = new Map<string, Map<string, RuntimeState>>();
   private journal = new Map<string, ActionLog[]>();
   private locks = new Map<string, Promise<unknown>>();
   readonly weekMarks = new Map<string, string>();
   readonly season: Season;
-  constructor(private now: () => number = Date.now) {
+  constructor(
+    private now: () => number = Date.now,
+    private random: () => number = () =>
+      randomBytes(4).readUInt32BE() / 0x100000000,
+  ) {
     this.season = {
       id: randomUUID(),
       name: "Đại Khánh · Thiên Nguyên",
@@ -51,6 +56,7 @@ export class InMemoryGameRepository implements GameRepository {
       season: this.season,
       serverNow: this.now(),
       usage: {},
+      meritUsedToday: 0,
     });
   }
   private serial<T>(id: string, operation: () => Promise<T> | T): Promise<T> {
@@ -78,6 +84,7 @@ export class InMemoryGameRepository implements GameRepository {
       state.revision++;
     state.account = account;
     const day = utc7Date(state.serverNow);
+    state.meritUsedToday = this.meritDays.get(id)?.get(day) ?? 0;
     state.usage = structuredClone(this.usageDays.get(id)?.get(day) ?? {});
     if (state.character && state.character.confirmedAt)
       state.character.age = getCharacterAge(
@@ -147,12 +154,21 @@ export class InMemoryGameRepository implements GameRepository {
         return structuredClone(prior);
       }
       const state = this.refresh(id);
-      const { state: next, log } = processAction(state, code, randomUUID());
+      const { state: next, log } = processAction(
+        state,
+        code,
+        randomUUID(),
+        this.random,
+      );
       const result = {
         log,
-        message: `${ACTIONS[code].name}: đã hoàn thành (−${log.apSpent} AP).`,
+        message: actionMessage(log),
       };
       this.states.set(id, next);
+      if (!this.meritDays.has(id)) this.meritDays.set(id, new Map());
+      this.meritDays
+        .get(id)!
+        .set(utc7Date(state.serverNow), next.meritUsedToday);
       const mark = `${log.characterId}:${state.season.id}:${log.worldTime.currentGameWeek}`;
       if (!this.weekMarks.has(mark)) this.weekMarks.set(mark, log.id);
       if (!this.usageDays.has(id)) this.usageDays.set(id, new Map());

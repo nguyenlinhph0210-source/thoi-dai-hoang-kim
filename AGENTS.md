@@ -173,7 +173,7 @@ Hệ thống quay ngẫu nhiên 1 trong 4 Xuất thân theo trọng số xác su
 2. **Bước 2:** Hệ thống random Xuất thân theo tỷ lệ `40% / 30% / 20% / 10%` và tuổi khởi đầu (mặc định `RandomInteger(16, 21)`).
 3. **Bước 3:** Hệ thống random 7 chỉ số gốc theo bảng khoảng của nhánh.
 4. **Bước 4:** Áp dụng hiệu ứng cộng/trừ từ Xuất thân.
-5. **Bước 5:** Giới hạn (Clamp) kết quả trong phạm vi hợp lệ của từng chỉ số. Nếu nhân vật khởi đầu ở một phẩm cấp có ngưỡng tối thiểu, nâng các chỉ số bắt buộc lên đúng ngưỡng nhập phẩm (không áp dụng cho điều kiện thăng lên phẩm cấp kế tiếp).
+5. **Bước 5:** Giới hạn (Clamp) kết quả trong phạm vi hợp lệ của từng chỉ số. Phẩm khởi đầu chuẩn không áp ngưỡng nhập phẩm; nếu kịch bản cho phẩm cao hơn, chỉ nâng bốn chỉ số phát triển lên cận dưới B-D của hàng phẩm đó (mục 5.3).
 6. **Bước 6:** Xác lập phẩm cấp khởi đầu. Cho phép người chơi **Chấp nhận** hoặc **Đổi thân phận (Reroll)**.
 7. **Bước 7:** Khi người chơi bấm **Xác nhận**, khóa thân phận, cộng `pendingRewardSilver` (nếu có) vào `characterSilver`, và **sinh ngay bộ 3 điều kiện thăng phẩm đầu tiên** gắn với ID nhân vật.
 
@@ -301,18 +301,9 @@ $$\text{isEligible} = (\text{Stat}_A \text{ đạt}) \land (\text{Stat}_B \text{
 | **Nội cung** (`INNER_COURT`) | Tâm Kế (`int`) | Tín nhiệm (`fav`) | Quyền Thế (`rep`), Phong thái (`cha`) |
 | **Hậu cung** (`HAREM`) | Thánh sủng (`fav`) | Quyền Thế (`rep`) | Tâm Kế (`int`), Dung mạo (`cha`) |
 
-- **Tỷ lệ ngẫu nhiên Chỉ số C (từ 5 chỉ số còn lại không trùng A và B):**
-  - **Chỉ số phát triển dài hạn còn lại thứ nhất (`C1`):** **40%**
-  - **Chỉ số phát triển dài hạn còn lại thứ hai (`C2`):** **40%**
-  - **3 Chỉ số đặc thù (`hp`, `characterSilver`, `suspicion`):** **20% tổng cộng**, phân bổ theo tỷ lệ chuẩn **`8% - 8% - 4%`**:
-    - `8%`: Thể Lực (`hp`)
-    - `8%`: Ngân lượng (`characterSilver`)
-    - `4%`: Nghi Kỵ (`suspicion`)
-    *(Lưu ý cấu hình: Định nghĩa hằng số `THIRD_STAT_WEIGHTS = { C1: 40, C2: 40, HP: 8, SILVER: 8, SUSPICION: 4 }` trong file config để hỗ trợ chuyển đổi linh hoạt với chế độ gom 20% vào `SUSPICION` nếu kịch bản mùa yêu cầu).*
-
-- **Toán tử kiểm tra:**
-  - Với `int`, `rep`, `fav`, `cha`, `hp`, `characterSilver`: Yêu cầu đạt **tối thiểu** (`currentValue >= R`).
-  - Với `suspicion` (Nghi Kỵ): Yêu cầu **không vượt quá** mức tối đa (`currentValue <= R`).
+- **Chỉ số C chỉ có ba ứng viên:** `C1` 40%, `C2` 40%, Nghi Kỵ (`suspicion`) 20%; không trùng A/B. Cấu hình `THIRD_STAT_WEIGHTS = { C1: 40, C2: 40, SUSPICION: 20 }`.
+- **Toán tử:** `>=` với `int`, `rep`, `fav`, `cha`; `<=` với `suspicion`.
+- **Thể Lực và Ngân lượng không tham gia xét thăng phẩm dưới bất kỳ dạng nào**, không có điều kiện nền hay điều kiện thứ tư. Ngoại lệ: HP chỉ ảnh hưởng xác suất của hành động khảo hạch.
 
 #### 2. Công thức Tính Ngưỡng `R` cho 4 Chỉ số Phát triển Dài hạn (`int`, `rep`, `fav`, `cha`)
 Với mỗi phẩm cấp mục tiêu có điểm chuẩn `B` (Base Benchmark), ngưỡng thực tế `R` được tính theo công thức:
@@ -332,22 +323,34 @@ $$R = \text{RandomInteger}(B - D, \, B + D)$$
 1. **Không làm tròn:** Giữ nguyên giá trị số nguyên ngẫu nhiên (ví dụ `361`, `299`, `676`), tuyệt đối không làm tròn về bội số của 5 hay 10.
 2. **Ràng buộc đơn điệu tăng (Monotonicity Constraint):** Ngưỡng `R` của phẩm cấp cao hơn đối với cùng một chỉ số bắt buộc phải **lớn hơn ít nhất 1 điểm** so với ngưỡng đã sinh ở phẩm cấp thấp hơn liền kề (`lowerBound = Math.max(B - D, previousRankR + 1)`), nhưng không được vượt quá `B + D` của cấp mục tiêu. Nếu cấu hình làm `lowerBound > upperBound`, hệ thống phải throw `ConfigurationError` chứ không được tự sinh giá trị vượt trần.
 
-#### 3. Bảng Khoảng Ngưỡng Riêng cho Thể Lực (`hp`), Ngân lượng (`characterSilver`) và Nghi Kỵ (`suspicion`)
-Khi Chỉ số C rơi vào 1 trong 3 chỉ số này, **không dùng công thức `B ± D`** mà lấy trực tiếp một số nguyên ngẫu nhiên `RandomInteger(min, max)` theo **5 Tầng phẩm cấp**:
+#### 3. Khoảng Nghi Kỵ theo tầng của phẩm MỤC TIÊU
 
-| Tầng phẩm cấp | Thể Lực tối thiểu (`hp >= R`) | Ngân lượng tối thiểu (`characterSilver >= R`) | Nghi Kỵ tối đa (`suspicion <= R`) | Văn giai | Võ giai | Hậu cung | Nội cung |
-| :--- | :---: | :---: | :---: | :--- | :--- | :--- | :--- |
-| **1. Sơ cấp** | `35 – 50` | `20 – 80` | `<= 60 – 75` | Bát – Thất phẩm | Thất phẩm | Cung tuyển / Mỹ nhân – Tuyên vinh | Cung nữ – Nữ sử |
-| **2. Trung thấp** | `45 – 60` | `80 – 200` | `<= 45 – 60` | Lục phẩm | Lục phẩm | Dung hoa – Tiệp dư | Chưởng quan |
-| **3. Trung cao** | `55 – 75` | `200 – 500` | `<= 30 – 45` | Ngũ phẩm | Ngũ phẩm | Sung Nghi – Chiêu Nghi | Điển quan – Tư quan |
-| **4. Cao cấp** | `65 – 85` | `500 – 1000` | `<= 15 – 35` | Tứ – Tam phẩm | Tứ – Tam phẩm | Tần – Phi | Lục Thượng / Cung chính |
-| **5. Tối cao** | `75 – 90` | `1000 – 2000` | `<= 5 – 25` | Nhị – Nhất phẩm | Nhị – Nhất phẩm | Quý phi – Hoàng hậu | Tổng quản Lục cục |
+Không dùng B ± D cho Nghi Kỵ. Sinh một số nguyên gồm cả hai đầu:
+
+| Tầng | Nghi Kỵ tối đa (`suspicion <= R`) |
+| :--- | :---: |
+| Sơ cấp | 60–75 |
+| Trung thấp | 45–60 |
+| Trung cao | 30–45 |
+| Cao cấp | 15–35 |
+| Tối cao | 5–25 |
+
+Khi sinh, nâng `R = max(R, min(100, suspicionFloor + 5))` để điều kiện không bất khả thi ngay lúc sinh. Nếu về sau sàn vượt R, đánh dấu `unreachable`, hiển thị cảnh báo và TODO(spec). Nếu chỉ Nghi Kỵ hiện tại vượt R thì gợi ý dùng hành động giảm Nghi Kỵ, không xem là bất khả thi. Không công khai giá trị Nghi Kỵ hiện tại hoặc sàn.
 
 #### 4. Quy tắc Khóa & Lưu trữ Điều kiện Thăng phẩm (Condition Locking)
 - Ngay khi nhân vật nhận một phẩm cấp, máy chủ tự động sinh bộ 3 điều kiện cho phẩm cấp tiếp theo và lưu vào Database gắn chặt với `(character_id, target_rank_id)`.
 - Đăng xuất, tải lại trang, đổi thiết bị hoặc trượt khảo hạch **không làm thay đổi** bộ điều kiện đã sinh.
 - Không có tính năng dùng Ngân lượng hay Thiên Mệnh để quay lại (reroll) điều kiện thăng phẩm.
 - Ngoài 3 điều kiện chỉ số (`A, B, C`), hệ thống kiểm tra độc lập các điều kiện: thời gian tại vị tối thiểu, công trạng, vượt khảo hạch, không trong trạng thái bị tra xét và **còn ghế trống** (đối với các chức danh hữu hạn ghế).
+
+### 5.3. Điều kiện ngoài chỉ số và quy tắc tranh ghế (Chặng 3A/3B)
+
+- Ngoài **đúng ba điều kiện chỉ số**, kiểm tra độc lập: thời gian tại vị tối thiểu theo ngày game, công trạng tích lũy trong kiếp, khảo hạch còn hiệu lực, không bị tra xét (`suspicion >= 80`), và còn ghế trống. Đây không phải chỉ số thứ tư.
+- Chặng 3A sinh/khóa điều kiện `table_version = 'v1'`, cộng công trạng có hạn mức theo tài khoản/ngày thực, khảo hạch và hiển thị tiến trình; `seatAvailable = 'UNKNOWN'`. Không nộp đơn, không thăng phẩm hoặc cấp ghế. Nhân vật cũ giữ nguyên điều kiện đã lưu.
+- Phẩm khởi đầu chuẩn (Chính bát phẩm Văn giai, Tòng thất phẩm Võ giai, Cung tuyển, Cung nữ sơ tuyển) **không áp ngưỡng nhập phẩm**, giữ nguyên phân phối mục 4.1. Nếu kịch bản cho khởi đầu ở phẩm cao hơn, chỉ nâng `int/rep/fav/cha` lên cận dưới `B-D` (clamp hợp lệ) của hàng đó; không nâng HP, bạc hoặc Nghi Kỵ.
+- Bảng chuẩn chính thức v1 nằm trong `src/config/promotionBenchmarks.ts`. Kiểm tra cấu hình khi nạp: đủ tầng, ánh xạ đúng phẩm/nhánh, và với từng chỉ số phát triển, cận dưới phẩm mục tiêu kế tiếp phải **lớn hơn** cận trên phẩm mục tiêu liền trước. Hàng khởi đầu không sinh R; ngoại lệ này giữ nguyên điểm chạm biên của Cung tuyển/Mỹ nhân (TODO(spec)). Phẩm cao nhất không sinh điều kiện tiếp.
+- **Tranh ghế (chỉ ghi đặc tả, triển khai Chặng 3B):** ưu tiên tổng mức vượt ngưỡng chuẩn hóa của ba điều kiện: với `>=`, `(current - R) / max(1, abs(R))`; với Nghi Kỵ `<=`, `(R - current) / max(1, R)`. Người vượt ngưỡng nhiều xếp trước người sát ngưỡng. Hòa thì công trạng cao hơn, tiếp đến thời điểm nộp đơn sớm hơn. Chốt trong giao dịch có khóa để không cấp trùng ghế.
+
 
 ---
 

@@ -17,22 +17,18 @@ import {
   ORIGIN_INFO,
   PROMOTION_STATS,
   RANKS,
-  SPECIAL_REQUIREMENT_RANGES,
+  SUSPICION_REQUIREMENT_RANGES,
   STAT_BOUNDS,
   THIRD_STAT_WEIGHTS,
 } from "./gameConfig";
 
-export class GameRuleError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "GameRuleError";
-  }
-}
-/** Next route bundles may instantiate separate copies of the class. */
-export function isGameRuleError(error: unknown): error is GameRuleError {
-  return error instanceof Error && error.name === "GameRuleError";
-}
-export class ConfigurationError extends Error {}
+import { GameRuleError, ConfigurationError } from "./errors";
+export { GameRuleError, ConfigurationError, isGameRuleError } from "./errors";
+import {
+  benchmarkDelta,
+  benchmarkRange,
+  PROMOTION_TABLE_VERSION,
+} from "@/config/promotionBenchmarks";
 export type RandomSource = () => number;
 
 /** Inject a seeded source in tests; server actions supply cryptographic randomness. */
@@ -107,16 +103,17 @@ export function generateCharacter(
       (ORIGIN_INFO[origin].modifiers[key] ?? 0);
   }
   const clamped = clampStats(stats);
-  for (const key of Object.keys(initialRank.entryMinimums) as LongTermStat[]) {
-    const minimum = initialRank.entryMinimums[key];
-    if (minimum === undefined) continue;
-    if (
-      !Number.isInteger(minimum) ||
-      minimum < STAT_BOUNDS[key][0] ||
-      minimum > STAT_BOUNDS[key][1]
-    )
-      throw new ConfigurationError("Ngưỡng nhập phẩm vượt giới hạn chỉ số.");
-    clamped[key] = Math.max(clamped[key], minimum);
+  // Standard starting ranks never force initial stats upward (including military).
+  // A future scenario may explicitly choose a higher rank; no such origin shortcut exists in M1.
+  if (initialRank.id !== INITIAL_RANKS[branch].id) {
+    const higher = RANKS[initialRank.id];
+    if (!higher)
+      throw new ConfigurationError("Không có phẩm khởi đầu trong bảng chuẩn.");
+    for (const stat of PROMOTION_STATS[branch])
+      clamped[stat] = Math.max(
+        clamped[stat],
+        benchmarkRange(stat, higher.benchmarks[stat])[0],
+      );
   }
   return {
     ...clamped,
@@ -137,6 +134,10 @@ export function generateCharacter(
     promotionRequirements: null,
     createdAt: context.now,
     confirmedAt: null,
+    rankEnteredAt: null,
+    merit: 0,
+    examPassedForRankId: null,
+    examPassedGameDay: null,
   };
 }
 
@@ -144,21 +145,38 @@ export function generatePromotionRequirements(
   character: Character,
   targetRank: Rank,
   now: string,
+  random?: RandomSource,
+  previous?: Partial<Record<LongTermStat, number>>,
+): PromotionRequirements;
+export function generatePromotionRequirements(
+  character: Character,
+  targetRank: null,
+  now: string,
+  random?: RandomSource,
+  previous?: Partial<Record<LongTermStat, number>>,
+): null;
+export function generatePromotionRequirements(
+  character: Character,
+  targetRank: Rank | null,
+  now: string,
+  random?: RandomSource,
+  previous?: Partial<Record<LongTermStat, number>>,
+): PromotionRequirements | null;
+export function generatePromotionRequirements(
+  character: Character,
+  targetRank: Rank | null,
+  now: string,
   random: RandomSource = Math.random,
   previous: Partial<Record<LongTermStat, number>> = {},
-): PromotionRequirements {
+): PromotionRequirements | null {
+  if (!targetRank) return null;
   if (targetRank.branch !== character.branch)
     throw new ConfigurationError("Phẩm cấp mục tiêu không thuộc nhánh.");
   const [a, b, c1, c2] = PROMOTION_STATS[character.branch];
   const weights = THIRD_STAT_WEIGHTS;
   const ticket = randomInteger(
     0,
-    weights.C1 +
-      weights.C2 +
-      weights.HP +
-      weights.SILVER +
-      weights.SUSPICION -
-      1,
+    weights.C1 + weights.C2 + weights.SUSPICION - 1,
     random,
   );
   const c: StatKey =
@@ -166,27 +184,34 @@ export function generatePromotionRequirements(
       ? c1
       : ticket < weights.C1 + weights.C2
         ? c2
-        : ticket < weights.C1 + weights.C2 + weights.HP
-          ? "hp"
-          : ticket < weights.C1 + weights.C2 + weights.HP + weights.SILVER
-            ? "characterSilver"
-            : "suspicion";
+        : "suspicion";
   function condition(stat: StatKey): PromotionCondition {
     let value: number;
-    if (stat === "hp" || stat === "characterSilver" || stat === "suspicion") {
-      const [min, max] = SPECIAL_REQUIREMENT_RANGES[targetRank.tier][stat];
-      value = randomInteger(min, max, random);
-    } else {
-      const base = targetRank.benchmarks[stat];
-      const delta = base < 100 ? 5 : base < 300 ? 10 : base < 700 ? 12 : 15;
-      const [min, max] = STAT_BOUNDS[stat];
-      const lower = Math.max(
-        min,
-        base - delta,
-        previous[stat] === undefined ? min : previous[stat] + 1,
+    if (stat === "suspicion") {
+      const [min, max] = SUSPICION_REQUIREMENT_RANGES[targetRank!.tier];
+      value = Math.max(
+        randomInteger(min, max, random),
+        Math.min(100, character.suspicionFloor + 5),
       );
-      const upper = Math.min(max, base + delta);
-      value = randomInteger(lower, upper, random); // Throws ConfigurationError for impossible monotonicity.
+    } else {
+      if (stat === "hp" || stat === "characterSilver")
+        throw new ConfigurationError(
+          "HP và bạc không tham gia điều kiện thăng phẩm.",
+        );
+      const base = targetRank!.benchmarks[stat],
+        delta = benchmarkDelta(base);
+      const [, max] = benchmarkRange(stat, base);
+      if (previous[stat] !== undefined && previous[stat] + 1 > max)
+        throw new ConfigurationError("Ngưỡng trước vượt khoảng phẩm mục tiêu.");
+      const drawn = randomInteger(
+        Math.max(
+          base - delta,
+          previous[stat] === undefined ? base - delta : previous[stat] + 1,
+        ),
+        base + delta,
+        random,
+      );
+      value = Math.max(stat === "fav" ? -100 : 0, Math.min(1000, drawn));
     }
     return stat === "suspicion"
       ? { stat, operator: "<=", value }
@@ -197,6 +222,7 @@ export function generatePromotionRequirements(
     targetRankId: targetRank.id,
     conditions: [condition(a), condition(b), condition(c)],
     generatedAt: now,
+    tableVersion: PROMOTION_TABLE_VERSION,
   };
 }
 
@@ -249,8 +275,8 @@ export function confirmCharacter(
     throw new GameRuleError("Cuộc đời này đã khép lại.");
   const rank = RANKS[character.rankId];
   const target = rank?.nextRankId ? RANKS[rank.nextRankId] : null;
-  if (!target)
-    throw new ConfigurationError("Chưa có cấu hình phẩm cấp tiếp theo.");
+  if (!rank)
+    throw new ConfigurationError("Không có cấu hình phẩm cấp hiện tại.");
   const silver = character.characterSilver + account.pendingRewardSilver;
   if (!Number.isSafeInteger(silver) || silver < 0)
     throw new ConfigurationError("Ngân lượng vượt phạm vi an toàn.");
@@ -266,6 +292,7 @@ export function confirmCharacter(
       characterSilver: silver,
       status: "ACTIVE",
       confirmedAt: now,
+      rankEnteredAt: now,
       promotionRequirements: generatePromotionRequirements(
         character,
         target,
