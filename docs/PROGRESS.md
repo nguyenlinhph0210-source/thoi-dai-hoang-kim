@@ -1,3 +1,84 @@
+# Chặng 3B — Ghế và thăng phẩm
+
+## Đã làm
+
+- AGENTS.md mục 5.4 ghi chín quyết định; cấu hình đầy đủ 52 phẩm, pool Tam Thái chung và Thái úy riêng, NPC dự trữ mặc định 0. Test so sánh sức chứa trực tiếp với mục 5.1 và DB.
+- Tái sử dụng seat_pools/rank_seats; thêm rank_pool_links, seat_applications, seat_assignments, seat_rounds, rank_history và seat_world_state qua migration 0005, không sửa schema/0002–0004. Ghế khởi đầu M1 còn sót được trả theo quyết định mới.
+- APPLY/withdraw nguyên tử, UUID ledger, AP/cap theo tài khoản/ngày Việt Nam; một đơn WAITING/nhân vật. Pool không giới hạn thăng ngay; có giới hạn chờ phiên, nộp được cả khi đầy.
+- Engine lazy xử lý tuần tự từng tuần bỏ lỡ, hết hạn/recheck/ranking/cấp ghế; điểm phân số chính xác, tie merit/thời gian/ID. Version CAS, khóa advisory và unique indexes bảo vệ ghế; các RPC hành động trước đó cùng thứ tự khóa.
+- Thăng phẩm trả ghế cũ, cập nhật rank/tại vị, xóa khảo hạch, lưu lịch sử riêng và bộ R kế tiếp đơn điệu; cao nhất không sinh. Hàm releaseSeats và RPC idempotent phục vụ Chặng 5.
+- Chuyển Nội cung cấp2–6 sang Hậu cung bằng hàm thuần/RPC service-only: guard, công thức fav, giữ công trạng/chỉ số, reset tại vị/khảo hạch, trả ghế/rút đơn, supersede điều kiện cũ và sinh điều kiện nhánh mới. Không có endpoint/nút kích hoạt.
+- Hồ sơ có nộp/rút/trạng thái/lý do/countdown; Quan chế bốn nhánh chỉ số lượng, làm nổi bật phẩm; Nhật ký 20 dòng gồm thăng phẩm. Giữ phong cách và trạng thái tiếng Việt, không dùng any.
+- RLS own applications; raw world/ghế/lịch sử chứa chỉ số ẩn chỉ server đọc. RPC nhạy cảm chỉ service_role. Bảng Quan chế và DTO không trả tên/ID/chỉ số/điểm tranh ghế của người khác.
+
+## Chưa làm / giới hạn
+
+**chưa kiểm chứng trên Supabase thật**: chưa có biến cấu hình dịch vụ trong môi trường. PGlite chạy SQL/RPC/RLS với auth/role stub và kiểm tra CAS/unique; chưa kiểm chứng Auth, PostgREST triển khai thật hoặc tranh chấp advisory lock trên PostgreSQL nhiều kết nối.
+
+Không làm sự kiện/ngẫu nhiên, nhật ký toàn triều, NPC/chức danh cụ thể, tử vong/trùng sinh, xếp hạng, PvP. Chưa mở kích hoạt chuyển nhánh; Chặng 4 gọi backend sự kiện. Khóa thế giới và nạp snapshot riêng tư hiện ưu tiên tính nhất quán; batching/khóa nhỏ hơn để tối ưu tải lớn chưa nằm trong chặng này.
+
+## Giả định / TODO(spec) Chặng 3B
+
+1. Phiên bỏ lỡ dùng chỉ số hiện tại, nhưng kiểm tra thời gian/hiệu lực khảo hạch ở mốc phiên. rank_entered_at và lịch sử dùng giờ xử lý thật; không hồi tố tại vị hoặc dựng lại chỉ số quá khứ.
+2. Phiên đầu tiên luôn sau thời điểm nộp; nộp đúng ranh giới vào tuần kế tiếp. Hết hạn ở createdAt + 28 ngày game, gồm cả request giữa hai phiên; xử lý phiên cũ trước khi hết hạn tại giờ hiện tại để không bỏ lỡ cơ hội thắng ở phiên trước hạn.
+3. Pool một mục tiêu xét trước pool chia sẻ: Thái úy trước Tam Thái; trong nhóm sắp theo key cố định. Ghế được trả sau khi pool đã xét trong cùng tuần sẽ dùng từ phiên sau. Không xét lặp pool trong tuần.
+4. APPLY chịu nhân quả tiêu AP. Nếu thăng ngay thì kiểm tra lại sau thay đổi chỉ số; không đạt rollback cả phí/đơn. Với WAITING, xét lại ở phiên như đặc tả. Rút đơn miễn phí được phép khi bệnh/khóa; không cộng merit, không đánh dấu hành động phát triển đầu tuần.
+5. Phẩm khởi đầu không chiếm/bị giới hạn ghế; Quan chế vẫn hiển thị sức chứa tham chiếu và ghi chú. Nhân vật cũ giữ các bộ R; sinh bộ mới so với mọi R phát triển cùng nhánh trước đó. Nghi Kỵ dùng quy tắc sàn+5 của 3A, không ép đơn điệu giữa các tầng có khoảng chồng.
+6. Chuyển nhánh thêm điều kiện ACTIVE/không khóa; không AP/merit mới. Hủy bộ Nội cung bằng superseded_at, giữ nguyên R lịch sử; bộ Hậu cung không so R nhánh cũ. Giữ sự bất khả thi phát sinh về sau theo 3A, không reroll.
+7. SQL tin cậy policy/đề xuất từ backend service_role; client chỉ gửi code+UUID. RPC đối chiếu version, thời gian, AP/cap và ràng buộc ghế; không nhận dữ liệu client làm đề xuất. Khóa thế giới trước pool/account/character theo thứ tự ổn định, retry khi CAS cũ.
+8. R tạm legacy có thể vượt cả khoảng v1 kế tiếp (fav60 Mỹ nhân M1 so với Lương nhân v1 tối đa55). Giữ nguyên R/bảng; thăng ngay rollback, phiên hữu hạn REJECTED riêng đơn mâu thuẫn và tiếp tục người khác, không làm kẹt thế giới. TODO(spec) cần chốt xử lý dữ liệu cũ.
+9. Các giả định 3A/M2 phía dưới còn hiệu lực: cộng hưởng chồng tầng; suy kiệt; năm lần Điều trị; sàn bão hòa100; EXAM trước chi phí, fail giữ pass; HP/bạc không xét thăng phẩm. Mục lịch sử mô tả trạng thái tại thời điểm chặng đó, không phủ định tính năng 3B.
+
+## Danh sách số liệu TEMP Chặng 3B
+
+| Config trong src/config/balance.ts | Giá trị |
+| --- | ---: |
+| APPLY_AP_COST | 1 AP |
+| APPLY_DAILY_CAP | 2 / tài khoản / ngày thực UTC+7 |
+| APPLICATION_EXPIRY_GAME_DAYS | 28 ngày game |
+
+Rút miễn phí (0 AP), không thưởng merit. Chu kỳ 7 ngày game và sức chứa theo AGENTS là quy tắc đã chốt, không phải TEMP. RESERVED_SEATS_FOR_NPC theo pool trong seats.ts mặc định0, chưa gán NPC. TEMP 3A/M2 giữ nguyên bảng lịch sử bên dưới.
+
+## Việc người dùng phải làm
+
+1. Đã ở 3A: chạy **supabase/migrations/0005_seats_and_promotion.sql** trong SQL Editor trước code này; có thể chạy lại để kiểm tra. Không chạy lại 0002–0004 sau 0005 vì sẽ thay RPC cũ.
+2. Dự án mới: schema.sql một lần → 0002 riêng → 0003 → 0004 → 0005. Không sửa file đã chạy.
+3. Giữ đủ NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY và SUPABASE_SERVICE_ROLE_KEY (chỉ server). Không cần env/cron mới; xét duyệt lazy. Không gửi khóa qua chat/PR.
+4. Chạy checklist dưới đây trên dự án test trước triển khai thật. Không có migration nào đã được chạy lên Supabase bên ngoài bởi phiên làm việc này.
+
+## Checklist kiểm thử tay Supabase thật Chặng 3B
+
+- [ ] Backup dữ liệu test; chạy 0005 hai lần, AP/mùa/R/đơn/ghế không reset; kiểm tra các link/pool/slot đúng AGENTS 5.1. Tam Thái một pool3, Thái úy riêng1. Phẩm khởi đầu không giữ ghế.
+- [ ] Hai tài khoản có ba điều kiện, tại vị, merit, pass còn hiệu lực: gửi APPLY cả khi pool đầy; 1 AP, cap2/ngày tài khoản. Gửi song song UUID giống/khác trên **hai kết nối thật**; AP/usage/log chính xác và tối đa một WAITING. Mất phản hồi rồi retry trả cùng kết quả cũ.
+- [ ] Rút không tốn AP, có thể nộp lại khi chưa đạt cap; ngày UTC+7 mới reset cap. Bệnh nặng/khóa/tra xét/không đủ điều kiện/hết AP/cao nhất bị từ chối không mất phí.
+- [ ] Nội cung1→2 hoặc Hậu cung0→14 thăng ngay cùng giao dịch. Finite luôn WAITING dù trống. Reload/đổi thiết bị giữ đơn và R.
+- [ ] Fixture hai đơn một ghế: vượt ngưỡng hơn thắng; hòa theo merit, thời gian, ID. Cả Văn/Võ cùng chia đúng3 Tam Thái; Thái úy chỉ Võ, NPC dự trữ không bị chiếm. Tab chỉ số ghế không có danh tính/điểm.
+- [ ] Gọi nhiều request snapshot/actions/Quan chế ở ranh giới tuần: chỉ một kết quả cho mỗi pool/round, không cấp trùng; ghế cũ trả ngay. Mô phỏng nhiều tuần không có request, kiểm tra phiên tăng dần và không xét đơn trước khi nộp.
+- [ ] Giảm chỉ số, bật tra xét/bệnh/khóa hoặc hết hiệu lực pass trước phiên: REJECTED kèm lý do. Thua ghế vẫn WAITING, hết hạn đúng28 ngày (kể cả giữa phiên). API không cho đổi giờ server.
+- [ ] Thăng phẩm giữ merit, reset tại vị/khảo hạch, bộ R mới đúng nhánh/monotonic; cao nhất không có mục tiêu. Nhật ký riêng có một dòng thăng phẩm, pagination20 và không đọc được tài khoản khác.
+- [ ] Backend test gọi release_seats hai lần: không lỗi, một lần trả ghế. Service-only convert inner2–6: guard cha150/int100/susp45; fav100→60,300→120; cấp2–4→Mỹ nhân,5–6→Lương nhân. Giữ stats/merit, reset tại vị/exam, trả ghế/rút đơn, khóa R cũ và sinh R Hậu cung. Không có route/nút công khai.
+- [ ] Với anon/JWT A: không đọc đơn B, raw assignments/world/rank_history; không INSERT/UPDATE hoặc EXECUTE sensitive RPC/alias3A. Kiểm tra response/DOM/bundle không có raw Nghi Kỵ/sàn/service key.
+
+## Lộ trình Chặng 3–7 cập nhật
+
+- **3A/3B:** điều kiện, khảo hạch, ghế và thực thi thăng phẩm đã cài đặt; còn checklist Supabase thật.
+- **4:** sự kiện cá nhân/lịch cốt truyện, nhật ký công khai toàn triều và sự kiện kích hoạt chuyển nhánh.
+- **5:** Ngự y, tử vong/trùng sinh, gọi releaseSeats, bảo toàn AP/hạn mức theo tài khoản.
+- **6:** NPC và chức danh cụ thể, dùng RESERVED_SEATS_FOR_NPC; các phần tổng kết mùa/xếp hạng theo kế hoạch được chốt sau.
+- **7:** hoàn thiện tương tác sâu/PvP, trải nghiệm và kiểm thử tải/bảo mật; không thêm vào 3B.
+
+## Kết quả kiểm chứng Chặng 3B
+
+- `npm run lint`, `npm run typecheck`, `npm run build`: đạt.
+- `npm test`: 77 kiểm tra đạt (58 hồi quy M1/M2/3A + 19 mới), gồm engine thuần và thực thi migration/RPC/RLS trên PGlite, SupabaseGameRepository qua HTTP transport nối PGlite.
+- 11 Playwright đạt trên InMemory: bốn nhánh, auth/retry/thiết bị, mobile/desktop, bảng ghế bốn nhánh và APPLY bị khóa/từ chối không mất AP. Không mở test endpoint hoặc chức năng tua giờ server.
+- Kiểm tra số ghế trực tiếp từ AGENTS 5.1 và SQL, CAS hai đề xuất cùng phiên bản, cùng UUID, cap2, thăng ngay/trả ghế, chuyển nhánh/supersede, không lộ Nghi Kỵ; có test cùng mili giây rút/nộp lại và xung đột R legacy.
+- **chưa kiểm chứng trên Supabase thật**; không chạy migration bên ngoài. Checklist nhiều kết nối/triển khai ở trên còn cần thực hiện.
+
+---
+
+# Lịch sử Chặng 3A và Chặng 2
+
 # Chặng 3A — Điều kiện thăng phẩm
 
 ## Đã làm

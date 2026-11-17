@@ -12,5 +12,9 @@ export interface GameRepository {
   ): Promise<RuntimeState>;
   act(accountId: string, code: ActionCode, key: string): Promise<ActionResult>;
   logs(accountId: string, page: number): Promise<ActionLog[]>;
+  runDueSeatRounds(): Promise<void>;
+  seatBoard(): Promise<import("@/types/seats").SeatBoardRow[]>;
+  releaseSeats(characterId: string): Promise<void>;
+  convertInnerCourtToHarem(characterId: string): Promise<void>;
   activeSeason(): Promise<Season>;
 }

@@ -12,6 +12,9 @@ export interface RuntimeState extends SetupState {
   serverNow: number;
   usage: Partial<Record<ActionCode, number>>;
   meritUsedToday: number;
+  seatApplication?: import("./seats").PublicSeatApplication | null;
+  nextSeatRoundAt?: number;
+  seatBoard?: import("./seats").SeatBoardRow[];
 }
 export interface ActionLog {
   id: string;
@@ -30,6 +33,7 @@ export interface ActionLog {
   worldTime: WorldTime;
   meritGained?: number;
   meritAfter?: number;
+  promotion?: { fromRankId: string; toRankId: string; conversion: boolean };
   exam?: {
     success: boolean;
     probability: number;
@@ -51,6 +55,9 @@ export interface GameView extends PublicSetupState {
   serverNow: number;
   usage: Partial<Record<ActionCode, number>>;
   meritUsedToday: number;
+  seatApplication?: import("./seats").PublicSeatApplication | null;
+  nextSeatRoundAt?: number;
+  seatBoard?: import("./seats").SeatBoardRow[];
   suspicionWarning: boolean;
   actionLocks: Record<ActionCode, string | null>;
   promotion:

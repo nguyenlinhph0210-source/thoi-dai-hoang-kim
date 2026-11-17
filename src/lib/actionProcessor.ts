@@ -26,6 +26,11 @@ export function actionLockReason(
   if (!c || !["ACTIVE", "SEVERELY_ILL"].includes(c.status))
     return "Bạn chưa xác nhận thân phận.";
   if (state.season.status !== "ACTIVE") return "Mùa giải đã kết thúc.";
+  // TODO(spec): cancelling paperwork remains free/available during illness or an action lock.
+  if (code === "WITHDRAW")
+    return state.seatApplication?.status === "WAITING"
+      ? null
+      : "Không có đơn đang chờ để rút.";
   if (c.actionLocked) return "Nhân vật đang bị khóa hành động.";
   if (c.status === "SEVERELY_ILL" && code !== "TREAT")
     return "Đang trọng bệnh, chỉ được điều trị.";
@@ -35,6 +40,20 @@ export function actionLockReason(
   if (c.characterSilver < a.silverCost) return "Không đủ ngân lượng.";
   if (c.hp < a.hpCost) return "Không đủ thể lực.";
   if ((state.usage[code] ?? 0) >= a.dailyCap) return "Đã đạt hạn mức hôm nay.";
+  if (code === "APPLY") {
+    if (state.seatApplication?.status === "WAITING")
+      return "Bạn đã có một đơn đang chờ.";
+    const p = evaluatePromotionEligibility(
+      c,
+      c.promotionRequirements,
+      promotionWorldTime(
+        state.serverNow,
+        Date.parse(state.season.seasonStartTimestamp),
+      ),
+    );
+    if (!p.eligibleToApply)
+      return p.examBlockReason ?? "Khảo hạch chưa có hiệu lực.";
+  }
   if (code === "EXAM")
     return evaluatePromotionEligibility(
       c,

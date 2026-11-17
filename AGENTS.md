@@ -352,6 +352,15 @@ Khi sinh, nâng `R = max(R, min(100, suspicionFloor + 5))` để điều kiện 
 - **Tranh ghế (chỉ ghi đặc tả, triển khai Chặng 3B):** ưu tiên tổng mức vượt ngưỡng chuẩn hóa của ba điều kiện: với `>=`, `(current - R) / max(1, abs(R))`; với Nghi Kỵ `<=`, `(R - current) / max(1, R)`. Người vượt ngưỡng nhiều xếp trước người sát ngưỡng. Hòa thì công trạng cao hơn, tiếp đến thời điểm nộp đơn sớm hơn. Chốt trong giao dịch có khóa để không cấp trùng ghế.
 
 
+### 5.4. Ghế và thực thi thăng phẩm (Chặng 3B)
+
+- Pool theo nhánh + phẩm, sức chứa đúng mục 5.1; Tam Thái Chính nhất phẩm dùng một pool 3 ghế chung Văn/Võ, Thái úy một ghế riêng Võ giai. Cung tuyển/Mỹ nhân/Lương nhân/Tài nhân và ba cấp đầu Nội cung không giới hạn. `RESERVED_SEATS_FOR_NPC` theo pool mặc định 0. Phẩm khởi đầu không chiếm hoặc bị giới hạn ghế.
+- Nhân vật ACTIVE, đủ điều kiện cá nhân 3A có thể nộp đơn ngay cả khi hết ghế; mỗi nhân vật tối đa một đơn WAITING. Bệnh nặng không nộp; phẩm cao nhất không có đơn. APPLY tạm 1 AP, cap2/tài khoản/ngày Việt Nam; rút miễn phí. Pool không giới hạn thăng ngay trong giao dịch nộp; pool hữu hạn chờ phiên.
+- Phiên tại mỗi ranh giới 7 ngày game, lazy khi request chạm thế giới, idempotent và xử lý tuần tự nếu bỏ lỡ. Đơn chỉ vào phiên đầu tiên sau nộp; hết hạn sau 28 ngày game (TEMP). Mỗi phiên: hết hạn → kiểm tra lại chỉ số/tại vị/merit/exam/tra xét/ACTIVE → xếp hạng → cấp ghế; không đạt REJECTED kèm lý do, người thua giữ WAITING.
+- Xếp theo tổng vượt ngưỡng chuẩn hóa mục 5.3, hòa thì merit cao hơn, nộp sớm hơn, rồi id nhỏ hơn. Giao dịch khóa thế giới/pool/nhân vật theo thứ tự cố định, kiểm tra revision và ghế còn trống. Thắng thì trả ghế cũ, đổi rank và mốc tại vị, xóa exam, sinh/khóa điều kiện kế tiếp có kiểm tra R cũ; phẩm cao nhất không sinh. Ghi lịch sử và nhật ký riêng, chưa có nhật ký toàn triều.
+- Quan chế chỉ trả số ghế/tổng/còn trống/đơn chờ cho mỗi phẩm, được xem nhánh khác nhưng không trả danh tính người chơi. `releaseSeats(characterId)` phục vụ Chặng 5; chưa cài tử vong.
+- Chuyển Nội cung sang Hậu cung chỉ có hàm thuần và RPC service_role, không endpoint/nút: cấp2–6, cha>=150, int>=100, suspicion<=45. Cấp2–4 nhận Mỹ nhân, cấp5–6 nhận Lương nhân; fav mới=min(120,floor(.35*fav cũ)+25). Giữ int/rep/cha/hp/bạc/suspicion/sàn/merit; reset tại vị, xóa exam, rút đơn, trả ghế Nội cung, hủy hiệu lực điều kiện Nữ quan và sinh bộ Hậu cung kế tiếp. Kích hoạt thật để Chặng 4.
+
 ---
 
 ## 6. QUY TẮC TỬ VONG, TRÙNG SINH, ĐIỂM THIÊN MỆNH & XẾP HẠNG CUỐI MÙA

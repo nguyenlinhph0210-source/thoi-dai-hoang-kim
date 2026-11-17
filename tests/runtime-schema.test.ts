@@ -248,6 +248,17 @@ test("M2 migrations/RPC: rerunnable, atomic AP/actions, RLS, illness, pagination
     await t.test(
       "SupabaseGameRepository adapter runs setup/actions against real PGlite RPCs via a mock HTTP transport",
       async () => {
+        // Keep M2 regression assertions above intact; exercise its adapter through the latest wrappers below.
+        for (const name of [
+          "0004_promotion_requirements.sql",
+          "0005_seats_and_promotion.sql",
+        ])
+          await db.exec(
+            await readFile(
+              new URL(`../supabase/migrations/${name}`, import.meta.url),
+              "utf8",
+            ),
+          );
         let forceRace = false;
         let hideLedger = false;
         const fetcher: typeof fetch = async (input, init) => {
@@ -292,6 +303,21 @@ test("M2 migrations/RPC: rerunnable, atomic AP/actions, RLS, illness, pagination
                       body.p_code,
                       JSON.stringify(body.p_proposal),
                     ],
+                  )
+                ).rows[0].v;
+              else if (
+                name === "seat_world_clock" ||
+                name === "seat_world_load" ||
+                name === "read_seat_board"
+              )
+                value = (
+                  await db.query<{ v: unknown }>(`select public.${name}() as v`)
+                ).rows[0].v;
+              else if (name === "read_game_journal")
+                value = (
+                  await db.query<{ v: unknown }>(
+                    "select public.read_game_journal($1,$2) as v",
+                    [body.p_account_id, body.p_page],
                   )
                 ).rows[0].v;
               else throw new Error("Unexpected RPC");
@@ -391,16 +417,42 @@ test("M2 migrations/RPC: rerunnable, atomic AP/actions, RLS, illness, pagination
         assert.equal((await repo.readState(other)).account.actionPoints, 8);
       },
     );
-    await t.test("reapplying 0003 after real account activity preserves balances, season start and logs",async()=>{
-      const before=await snapshot();
-      const countBefore=await db.query<{n:number}>("select count(*)::int as n from public.action_logs");
-      await db.exec(await readFile(new URL("../supabase/migrations/0003_runtime_foundation.sql",import.meta.url),"utf8"));
-      const after=await snapshot();
-      assert.deepEqual(after.account,before.account);
-      assert.equal(after.season.seasonStartTimestamp,before.season.seasonStartTimestamp);
-      assert.equal(after.character!.characterSilver,before.character!.characterSilver);
-      assert.deepEqual((await db.query<{n:number}>("select count(*)::int as n from public.action_logs")).rows,countBefore.rows);
-    });
+    await t.test(
+      "reapplying 0003 after real account activity preserves balances, season start and logs",
+      async () => {
+        const before = await snapshot();
+        const countBefore = await db.query<{ n: number }>(
+          "select count(*)::int as n from public.action_logs",
+        );
+        await db.exec(
+          await readFile(
+            new URL(
+              "../supabase/migrations/0003_runtime_foundation.sql",
+              import.meta.url,
+            ),
+            "utf8",
+          ),
+        );
+        const after = await snapshot();
+        assert.deepEqual(after.account, before.account);
+        assert.equal(
+          after.season.seasonStartTimestamp,
+          before.season.seasonStartTimestamp,
+        );
+        assert.equal(
+          after.character!.characterSilver,
+          before.character!.characterSilver,
+        );
+        assert.deepEqual(
+          (
+            await db.query<{ n: number }>(
+              "select count(*)::int as n from public.action_logs",
+            )
+          ).rows,
+          countBefore.rows,
+        );
+      },
+    );
     await t.test(
       "owner-only RLS and hidden data/service RPC protections for anon and authenticated",
       async () => {
