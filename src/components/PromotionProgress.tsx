@@ -10,12 +10,22 @@ export default function PromotionProgress({
   lockReason,
   pending,
   onExam,
+  application,
+  applyLock,
+  onApply,
+  onWithdraw,
+  nextRoundCountdown,
 }: {
   progress: PublicPromotionProgress | null;
   branch: Branch;
   lockReason: string | null;
   pending: boolean;
   onExam: () => void;
+  application: import("@/types/seats").PublicSeatApplication | null;
+  applyLock: string | null;
+  onApply: () => void;
+  onWithdraw: () => void;
+  nextRoundCountdown: string;
 }) {
   if (!progress)
     return (
@@ -150,10 +160,53 @@ export default function PromotionProgress({
         Khảo hạch · {ACTIONS.EXAM.apCost} AP · {ACTIONS.EXAM.hpCost} Thể Lực
       </button>
       {lockReason && <p className="lock-reason">{lockReason}</p>}
-      <p className="promotion-hint">
-        Ghế trống: chưa xét (Chặng 3B).
-        {progress.eligibleToApply ? " Đã đạt điều kiện cá nhân." : ""}
-      </p>
+      <div className="seat-application" aria-live="polite">
+        <p>
+          Phiên xét duyệt kế tiếp sau: <strong>{nextRoundCountdown}</strong>
+        </p>
+        {application && (
+          <p data-testid="application-status">
+            {
+              {
+                WAITING: "Đang chờ xét duyệt",
+                PROMOTED: "Đã thăng phẩm",
+                REJECTED: "Đơn bị từ chối",
+                EXPIRED: "Đơn hết hạn",
+                WITHDRAWN: "Đã rút đơn",
+              }[application.status]
+            }
+            {application.reason ? ` · ${application.reason}` : ""}
+          </p>
+        )}
+        {application?.status === "WAITING" ? (
+          <>
+            <p className="promotion-hint">
+              Đơn được xét lại mỗi tuần game cho đến khi hết hạn. Không cần nộp
+              lại khi hết ghế.
+            </p>
+            <button
+              className="secondary-button"
+              data-testid="action-WITHDRAW"
+              disabled={pending}
+              onClick={onWithdraw}
+            >
+              Rút đơn · miễn phí
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="primary-button exam-button"
+              data-testid="action-APPLY"
+              disabled={pending || !!applyLock}
+              onClick={onApply}
+            >
+              Nộp đơn · {ACTIONS.APPLY.apCost} AP
+            </button>
+            {applyLock && <p className="lock-reason">{applyLock}</p>}
+          </>
+        )}
+      </div>
     </section>
   );
 }

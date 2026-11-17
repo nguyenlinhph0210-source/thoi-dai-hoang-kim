@@ -20,6 +20,7 @@ import { msUntilApGrant, utc7Date } from "@/lib/ap";
 import { BRANCH_INFO, RANKS, statLabel } from "@/lib/gameConfig";
 import { logout } from "@/app/login/actions";
 import type { GameView, LogPage } from "@/types/runtime";
+import SeatBoard from "./SeatBoard";
 import PromotionProgress from "./PromotionProgress";
 import PalaceIllustration from "./PalaceIllustration";
 const tabs = [
@@ -243,6 +244,15 @@ export default function MainStage({
         lockReason={state.actionLocks.EXAM}
         pending={sending || !!retry}
         onExam={() => void act("EXAM")}
+        application={state.seatApplication ?? null}
+        applyLock={state.actionLocks.APPLY}
+        onApply={() => void act("APPLY")}
+        onWithdraw={() => void act("WITHDRAW")}
+        nextRoundCountdown={
+          state.nextSeatRoundAt
+            ? duration(state.nextSeatRoundAt - now)
+            : "Đang đồng bộ…"
+        }
       />
       {state.suspicionWarning && (
         <p className="suspicion-warning" role="status">
@@ -279,8 +289,10 @@ export default function MainStage({
             <li key={log.id}>
               <span className="journal-dot" />
               <strong>
-                {ACTIONS[log.actionCode].branchNames?.[c.branch] ??
-                  ACTIONS[log.actionCode].name}
+                {log.promotion
+                  ? `${log.promotion.conversion ? "Chuyển nhánh" : "Thăng phẩm"} · ${RANKS[log.promotion.toRankId]?.name}`
+                  : (ACTIONS[log.actionCode].branchNames?.[c.branch] ??
+                    ACTIONS[log.actionCode].name)}
               </strong>
               <small>
                 Năm {START_REIGN_YEAR + log.worldTime.currentGameYear - 1},
@@ -418,7 +430,7 @@ export default function MainStage({
             </div>
             <div className="action-grid">
               {Object.values(ACTIONS)
-                .filter((a) => a.code !== "EXAM")
+                .filter((a) => !["EXAM", "APPLY", "WITHDRAW"].includes(a.code))
                 .map((a) => {
                   const reason = state.actionLocks[a.code];
                   return (
@@ -469,7 +481,12 @@ export default function MainStage({
                 <Landmark size={16} />
                 <h2>Quan chế</h2>
               </div>
-              <p className="stage-muted">Sắp ra mắt</p>
+              <SeatBoard
+                rows={state.seatBoard ?? []}
+                branch={c.branch}
+                currentRankId={c.rankId}
+                targetRankId={state.promotion?.targetRankId ?? null}
+              />
             </section>
             <div
               className={`mobile-pane ${tab === "logs" ? "pane-active" : ""}`}

@@ -168,7 +168,7 @@ test("lost response retry retains UUID, spends AP once and writes one log", asyn
     (await (await page.request.get("/api/game")).json()).journal.logs,
   ).toHaveLength(1);
 });
-test("mobile navigation, empty logs and rank placeholder; no overflow", async ({
+test("mobile navigation, empty logs and seat counts; no overflow", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -181,7 +181,12 @@ test("mobile navigation, empty logs and rank placeholder; no overflow", async ({
     page.getByRole("heading", { name: "Hồ sơ thân phận" }),
   ).toBeVisible();
   await nav.getByRole("button", { name: "Quan chế", exact: true }).click();
-  await expect(page.getByText("Sắp ra mắt", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Nhánh Quan chế")).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Đơn chờ" }),
+  ).toBeVisible();
+  await page.getByLabel("Nhánh Quan chế").selectOption("MILITARY");
+  await expect(page.getByRole("caption")).toContainText("Võ giai");
   await nav.getByRole("button", { name: "Nhật ký", exact: true }).click();
   await expect(page.getByText("Chưa có dấu chân trong triều.")).toBeVisible();
   await nav.getByRole("button", { name: "Sân khấu", exact: true }).click();
@@ -213,6 +218,10 @@ test("promotion profile: locked three v1 conditions, merit updates, exam locked 
   ).toBeVisible();
   await expect(page.locator(".promotion-condition")).toHaveCount(3);
   await expect(page.getByTestId("action-EXAM")).toBeDisabled();
+  await expect(page.getByTestId("action-APPLY")).toBeDisabled();
+  await expect(
+    page.getByText("Phiên xét duyệt kế tiếp sau:", { exact: false }),
+  ).toBeVisible();
   const original = (await (await page.request.get("/api/game")).json()).state;
   expect(original.character.promotionRequirements.tableVersion).toBe("v1");
   expect(original.promotion.seatAvailable).toBe("UNKNOWN");
@@ -259,4 +268,37 @@ test("promotion profile: locked three v1 conditions, merit updates, exam locked 
     fullPage: true,
   });
   await other.close();
+});
+
+test("Quan chế shows counts across branches and APPLY rejection leaves AP and journal unchanged", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await register(page);
+  await createLife(page);
+  const before = (await (await page.request.get("/api/game")).json()).state;
+  const response = await page.request.post("/api/actions", {
+    data: { code: "APPLY", key: randomUUID() },
+  });
+  expect(response.status()).toBe(400);
+  const after = (await (await page.request.get("/api/game")).json()).state;
+  expect(after.account.actionPoints).toBe(before.account.actionPoints);
+  expect(after.seatApplication).toBeNull();
+  expect(after.seatBoard).toHaveLength(52);
+  for (const row of after.seatBoard) {
+    expect(row).not.toHaveProperty("characterId");
+    expect(row).not.toHaveProperty("accountId");
+    expect(row).not.toHaveProperty("score");
+    expect(row).not.toHaveProperty("suspicion");
+  }
+  await page.getByLabel("Nhánh Quan chế").selectOption("HAREM");
+  await expect(page.getByRole("caption")).toContainText("Hậu cung");
+  await expect(
+    page.getByRole("rowheader", { name: "Hoàng hậu", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("action-APPLY")).toBeDisabled();
+  await page.screenshot({
+    path: "/tmp/dai-noi-ky-m3b-desktop.png",
+    fullPage: true,
+  });
 });

@@ -29,6 +29,9 @@ export function gameView(state: RuntimeState): GameView {
     ...publicState(state),
     season: state.season,
     serverNow: state.serverNow,
+    seatApplication: state.seatApplication ?? null,
+    nextSeatRoundAt: state.nextSeatRoundAt,
+    seatBoard: state.seatBoard ?? [],
     usage: state.usage,
     meritUsedToday: state.meritUsedToday ?? 0,
     promotion: state.character

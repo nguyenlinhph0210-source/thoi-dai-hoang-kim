@@ -145,3 +145,17 @@ h1 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 3.4v
 
 /* Locked promotion requirements — milestone 3A. */
 .promotion-progress{border-top:1px solid var(--line);margin-top:22px;padding-top:20px}.promotion-progress h3{display:flex;gap:7px;align-items:center;font-family:Georgia,serif;font-size:17px;font-weight:400;color:#795435;line-height:1.5}.promotion-path{font-size:11px;color:#8f302c;line-height:1.9;margin:13px 0 17px}.promotion-path span{color:var(--gold);padding:0 4px}.promotion-condition{margin-top:15px}.promotion-condition>div:first-child{display:flex;justify-content:space-between;align-items:start;gap:8px;font-size:11px;color:#806a50;line-height:1.6}.promotion-condition strong{font-weight:400}.promotion-condition>div:first-child>span{white-space:nowrap;color:#74522e}.promotion-condition>small{display:flex;align-items:center;gap:3px;font-size:10px;color:#9b7856;margin-top:5px}.promotion-condition.condition-passed>small{color:#627547}.promotion-track{height:4px;background:#e8ddc7;margin-top:7px}.promotion-track>span{display:block;height:100%;background:#ae8c52}.condition-passed .promotion-track>span{background:#819563}.promotion-extra{border-top:1px solid var(--line);padding-top:6px;margin-top:18px}.promotion-extra>div{display:flex;justify-content:space-between;gap:6px;font-size:11px;line-height:1.8;margin-top:10px;color:#887254}.promotion-extra strong{font-weight:400;color:#6f492b}.promotion-exam-status,.promotion-hint{font-size:10px;line-height:1.9;color:#8c785d;margin-top:12px}.promotion-warning{font-size:11px;line-height:1.8;color:#9c4e30;background:#f3dfcd;padding:10px;margin-top:10px}.exam-button{width:100%;font-size:10px;line-height:1.6;padding:11px 7px;margin-top:15px}.promotion-progress .lock-reason{display:block}
+
+/* Quan chế */
+.seat-board label { display:flex; gap:.5rem; align-items:center; font-size:.85rem; }
+.seat-board select { min-width:0; background:#f5e8cc; color:#482b23; border:1px solid #b39358; border-radius:4px; padding:.4rem; }
+.seat-table-wrap { overflow-x:auto; margin-top:1rem; }
+.seat-board table { width:100%; border-collapse:collapse; font-size:.75rem; }
+.seat-board caption { text-align:left; padding-bottom:.65rem; color:#795932; }
+.seat-board th,.seat-board td { text-align:left; padding:.55rem .3rem; border-bottom:1px solid #c9ad7850; }
+.seat-board thead th { white-space:normal; color:#7b2e26; }
+.seat-board small { display:block; font-weight:normal; color:#8d6a3b; font-size:.65rem; }
+.seat-current { background:#9a302515; }
+.seat-target { background:#b98a3020; }
+.seat-application { border-top:1px solid #b3935860; margin-top:1rem; padding-top:.7rem; font-size:.8rem; }
+.seat-application .secondary-button { width:100%; padding:.65rem; }

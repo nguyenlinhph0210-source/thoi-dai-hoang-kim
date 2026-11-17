@@ -13,7 +13,25 @@ export const RESONANCE_STACKING = true; // TODO(spec): choose cumulative 15% per
 export const TREATMENTS_REQUIRED = 5; // TODO(spec): five paid treatment actions unlock illness.
 export const LOG_PAGE_SIZE = 20;
 /** TEMP — deliberately centralized; no balance values in the processor. */
+export const APPLY_AP_COST = 1; // TEMP
+export const APPLY_DAILY_CAP = 2; // TEMP
 export const ACTION_BALANCE = {
+  APPLY: {
+    meritGain: 0,
+    apCost: APPLY_AP_COST,
+    silverCost: 0,
+    hpCost: 0,
+    gains: {},
+    dailyCap: APPLY_DAILY_CAP,
+  },
+  WITHDRAW: {
+    meritGain: 0,
+    apCost: 0,
+    silverCost: 0,
+    hpCost: 0,
+    gains: {},
+    dailyCap: 2147483647, // Technical SQL integer ceiling; withdrawal has no gameplay quota.
+  },
   STUDY: {
     meritGain: 1,
     apCost: 1,
@@ -120,3 +138,6 @@ export const EXAM_BALANCE = {
   fatiguePenalty: 0.3,
   fatiguedMinimum: 0.05,
 } as const;
+
+/** TEMP — seat applications. Weekly boundary comes from the world calendar. */
+export const APPLICATION_EXPIRY_GAME_DAYS = 28;

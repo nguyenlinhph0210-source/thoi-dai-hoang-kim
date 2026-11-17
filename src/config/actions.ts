@@ -15,6 +15,20 @@ export interface ActionDefinition {
   dailyCap: number;
 }
 export const ACTIONS: Record<ActionCode, ActionDefinition> = {
+  APPLY: {
+    code: "APPLY",
+    name: "Nộp đơn",
+    description: "Xin xét thăng phẩm.",
+    type: "NORMAL",
+    ...ACTION_BALANCE.APPLY,
+  },
+  WITHDRAW: {
+    code: "WITHDRAW",
+    name: "Rút đơn",
+    description: "Rút đơn đang chờ, miễn phí.",
+    type: "NORMAL",
+    ...ACTION_BALANCE.WITHDRAW,
+  },
   EXAM: {
     code: "EXAM",
     name: "Khảo hạch",
