@@ -302,3 +302,33 @@ test("Quan chế shows counts across branches and APPLY rejection leaves AP and 
     fullPage: true,
   });
 });
+
+test("read warning is mild, keeps profile/AP visible and clears after a healthy refresh", async ({
+  page,
+}) => {
+  await register(page);
+  await createLife(page);
+  let degraded = true;
+  await page.route("**/api/game?*", async (route) => {
+    const response = await route.fetch();
+    const payload = await response.json();
+    payload.state.readWarnings = degraded
+      ? [
+          "Phiên xét duyệt đang tạm gián đoạn. Hồ sơ vẫn được hiển thị; hãy đồng bộ lại sau.",
+        ]
+      : [];
+    await route.fulfill({ response, json: payload });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByTestId("read-warning")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sân khấu chính", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("ap-balance")).toHaveText("10/15 AP");
+  await expect(
+    page.getByText("Chưa thể vào triều", { exact: true }),
+  ).toHaveCount(0);
+  degraded = false;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByTestId("read-warning")).toHaveCount(0);
+});

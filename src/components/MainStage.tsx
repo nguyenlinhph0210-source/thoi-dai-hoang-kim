@@ -20,6 +20,7 @@ import { msUntilApGrant, utc7Date } from "@/lib/ap";
 import { BRANCH_INFO, RANKS, statLabel } from "@/lib/gameConfig";
 import { logout } from "@/app/login/actions";
 import type { GameView, LogPage } from "@/types/runtime";
+import ReadWarnings from "./ReadWarnings";
 import SeatBoard from "./SeatBoard";
 import PromotionProgress from "./PromotionProgress";
 import PalaceIllustration from "./PalaceIllustration";
@@ -385,6 +386,7 @@ export default function MainStage({
           <h1>Sân khấu chính</h1>
           <p>Chọn một việc hôm nay, viết một nét cho cuộc đời.</p>
         </section>
+        <ReadWarnings warnings={state.readWarnings} />
         {message && (
           <div className="stage-notice" role="status">
             {message}

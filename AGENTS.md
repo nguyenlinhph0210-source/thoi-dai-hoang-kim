@@ -28,6 +28,15 @@
     - **Cột giữa (Center Stage):** Sân khấu chính hiển thị bối cảnh hiện tại, tương tác hành động tiêu tốn AP, hội thoại và xử lý Sự kiện (Event Cards & Choices).
     - **Cột phải (Right Panel):** Bảng quan chức Ngoại triều / Phẩm vị Hậu cung & Nội cung (số ghế trống/đã chiếm), danh sách NPC trọng yếu, quan hệ phe phái và Nhật ký triều chính (World & Court Logs).
 
+### 1.3. Quy tắc SQL / RPC và pg-safeupdate
+
+- Mọi `UPDATE`/`DELETE` trong RPC, trigger và SQL ứng dụng phải có `WHERE` tường minh, giới hạn theo khóa chính, mùa/trạng thái nghiệp vụ. Không tắt pg-safeupdate. Chỉ dùng `WHERE true` khi thực sự cần toàn bảng và phải ghi chú lý do ngay cạnh câu lệnh.
+- `SELECT ... FOR UPDATE`, khai báo trigger và `INSERT ... ON CONFLICT DO UPDATE` có khóa xung đột không phải DML UPDATE/DELETE toàn bảng; không thêm WHERE giả vào các cấu trúc này.
+- Migration đã chạy là bất biến. Sửa bằng migration mới trong begin/commit, giữ chữ ký/quyền service_role/idempotency; không mở RPC ghi cho anon/authenticated.
+- `npm run lint:sql` (cũng chạy trong lint, test và CI) quét toàn bộ migrations, schema.sql (Chặng 1, không có file 0001) và SQL literal/template trong src. Duy nhất câu thiếu WHERE lịch sử ở `0005:seat_world_after_write` được nhận diện chính xác và bắt buộc có bản thay thế 0006; không miễn kiểm tra cả file, mọi vi phạm mới đều fail.
+- Giới hạn: đây là bộ kiểm tra từ vựng, không phải parser PostgreSQL hay kiểm chứng điều kiện nghiệp vụ. Bỏ comment/chuỗi dữ liệu nhưng quét thân AS/DO dollar-quoted. SQL dựng động bằng EXECUTE/ghép chuỗi không được phân tích đầy đủ; phải rà soát riêng. Fixture SQL trong tests không phải đường SQL sản xuất. Bộ kiểm tra bỏ WHERE của truy vấn con khi xét UPDATE/DELETE ngoài nó.
+- Log DB chỉ tên RPC/bảng cố định, code/message/hint/details đã lọc; không log error object, đối số, URL, header, khóa, token, ID/email, chỉ số hoặc bản ghi người chơi. Nội dung chẩn đoán chưa được duyệt phải bị che.
+
 ---
 
 ## 2. QUY TẮC THẾ GIỚI, THỜI GIAN & LƯỢT HÀNH ĐỘNG (WORLD, TIME & AP MECHANICS)

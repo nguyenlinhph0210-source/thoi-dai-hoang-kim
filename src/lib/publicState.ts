@@ -32,6 +32,7 @@ export function gameView(state: RuntimeState): GameView {
     seatApplication: state.seatApplication ?? null,
     nextSeatRoundAt: state.nextSeatRoundAt,
     seatBoard: state.seatBoard ?? [],
+    readWarnings: state.readWarnings ?? [],
     usage: state.usage,
     meritUsedToday: state.meritUsedToday ?? 0,
     promotion: state.character

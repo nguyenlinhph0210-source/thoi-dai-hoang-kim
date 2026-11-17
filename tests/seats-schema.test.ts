@@ -14,7 +14,7 @@ import { MS_PER_GAME_DAY } from "../src/config/balance";
 import type { SeatWorld, SeatChange } from "../src/types/seats";
 import type { RuntimeState } from "../src/types/runtime";
 
-test("0005/PGlite: rerunnable pools, RPC transactions, CAS, exact replay, seats, conversion and RLS", async (t) => {
+test("0005/0006/PGlite: rerunnable pools, RPC transactions, CAS, exact replay, seats, conversion and RLS", async (t) => {
   const db = new PGlite();
   try {
     await db.exec(
@@ -27,6 +27,8 @@ test("0005/PGlite: rerunnable pools, RPC transactions, CAS, exact replay, seats,
       "migrations/0004_promotion_requirements.sql",
       "migrations/0005_seats_and_promotion.sql",
       "migrations/0005_seats_and_promotion.sql",
+      "migrations/0006_fix_safeupdate.sql",
+      "migrations/0006_fix_safeupdate.sql",
     ])
       await db.exec(
         await readFile(new URL(`../supabase/${name}`, import.meta.url), "utf8"),

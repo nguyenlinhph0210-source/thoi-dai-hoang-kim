@@ -26,6 +26,11 @@ import type { SeatBoardRow } from "@/types/seats";
 import { seatProposal, hasSeatChanges } from "@/lib/seatPersistence";
 import type { SeatChange, SeatWorld } from "@/types/seats";
 import type { Season } from "@/types/game";
+import {
+  logSupabaseError,
+  SEAT_ROUND_WARNING,
+  SEAT_BOARD_WARNING,
+} from "@/lib/supabaseDiagnostics";
 export class SupabaseGameRepository implements GameRepository {
   constructor(private db: SupabaseClient) {}
   private failure(message: string): never {
@@ -35,8 +40,34 @@ export class SupabaseGameRepository implements GameRepository {
       "Không thể cập nhật dữ liệu. Kiểm tra kết nối và cấu hình Supabase.",
     );
   }
+  private async query<T extends { error: unknown }>(
+    target: string,
+    operation: PromiseLike<T>,
+  ): Promise<T> {
+    try {
+      const result = await operation;
+      if (result.error) logSupabaseError(target, result.error);
+      return result;
+    } catch (error) {
+      logSupabaseError(target, error);
+      this.failure("Transport unavailable");
+    }
+  }
+  private rpc(name: string, args?: Record<string, unknown>) {
+    return this.query(`rpc:${name}`, this.db.rpc(name, args));
+  }
+  private async trySeatRounds(): Promise<boolean> {
+    try {
+      await this.runDueSeatRounds();
+      return true;
+    } catch (error) {
+      // RPC failures were logged at their source. Also cover non-database engine errors.
+      logSupabaseError("operation:runDueSeatRounds", error);
+      return false;
+    }
+  }
   private async loadWorld(): Promise<SeatWorld> {
-    const { data, error } = await this.db.rpc("seat_world_load");
+    const { data, error } = await this.rpc("seat_world_load");
     if (error || !data) this.failure(error?.message ?? "Missing world");
     const world = data as SeatWorld;
     world.states = world.states.map(normalizeState);
@@ -52,10 +83,10 @@ export class SupabaseGameRepository implements GameRepository {
       p_proposal: seatProposal(change),
     };
     if (characterId) args.p_character_id = characterId;
-    return this.db.rpc(rpc, args);
+    return this.rpc(rpc, args);
   }
   async runDueSeatRounds(): Promise<void> {
-    const { data, error } = await this.db.rpc("seat_world_clock");
+    const { data, error } = await this.rpc("seat_world_clock");
     if (error || !data) this.failure(error?.message ?? "Missing world clock");
     if (!(data as { due: boolean }).due) return;
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -77,8 +108,11 @@ export class SupabaseGameRepository implements GameRepository {
     throw new GameRuleError("Triều đình đang xét duyệt. Vui lòng thử lại.");
   }
   async seatBoard(): Promise<SeatBoardRow[]> {
-    await this.runDueSeatRounds();
-    const { data, error } = await this.db.rpc("read_seat_board");
+    await this.trySeatRounds();
+    return this.readSeatCounts();
+  }
+  private async readSeatCounts(): Promise<SeatBoardRow[]> {
+    const { data, error } = await this.rpc("read_seat_board");
     if (error || !data) this.failure(error?.message ?? "Missing seat counts");
     return (data as SeatBoardRow[]).map((row) => {
       const reserved = poolsForRank(row.rankId).reduce(
@@ -97,7 +131,7 @@ export class SupabaseGameRepository implements GameRepository {
   }
   async releaseSeats(characterId: string): Promise<void> {
     await this.runDueSeatRounds();
-    const { error } = await this.db.rpc("release_seats", {
+    const { error } = await this.rpc("release_seats", {
       p_character_id: characterId,
     });
     if (error) this.failure(error.message);
@@ -122,12 +156,15 @@ export class SupabaseGameRepository implements GameRepository {
     throw new GameRuleError("Dữ liệu đã thay đổi. Vui lòng thử lại.");
   }
   async activeSeason(): Promise<Season> {
-    await this.runDueSeatRounds();
-    const { data, error } = await this.db
-      .from("seasons")
-      .select("id,name,scenario_code,status,season_start_timestamp,ended_at")
-      .eq("status", "ACTIVE")
-      .single();
+    await this.trySeatRounds();
+    const { data, error } = await this.query(
+      "table:seasons",
+      this.db
+        .from("seasons")
+        .select("id,name,scenario_code,status,season_start_timestamp,ended_at")
+        .eq("status", "ACTIVE")
+        .single(),
+    );
     if (error || !data) this.failure("Season unavailable");
     return {
       id: data.id,
@@ -140,14 +177,24 @@ export class SupabaseGameRepository implements GameRepository {
     };
   }
   async readState(id: string): Promise<RuntimeState> {
-    await this.runDueSeatRounds();
-    const { data, error } = await this.db.rpc("runtime_snapshot", {
+    const roundsOk = await this.trySeatRounds();
+    const state = await this.snapshot(id);
+    state.readWarnings = roundsOk ? [] : [SEAT_ROUND_WARNING];
+    try {
+      state.seatBoard = await this.readSeatCounts();
+    } catch {
+      state.seatBoard = [];
+      state.readWarnings.push(SEAT_BOARD_WARNING);
+    }
+    return state;
+  }
+  /** Essential snapshot failures still propagate; never fabricate account/AP data. */
+  private async snapshot(id: string): Promise<RuntimeState> {
+    const { data, error } = await this.rpc("runtime_snapshot", {
       p_account_id: id,
     });
     if (error || !data) this.failure(error?.message ?? "Missing account");
-    const state = normalizeState(data as RuntimeState);
-    state.seatBoard = await this.seatBoard();
-    return state;
+    return normalizeState(data as RuntimeState);
   }
   async setup(
     id: string,
@@ -155,19 +202,23 @@ export class SupabaseGameRepository implements GameRepository {
     revision: number,
     key: string,
   ): Promise<RuntimeState> {
-    const prior = await this.db
-      .from("setup_requests")
-      .select("action,result")
-      .eq("account_id", id)
-      .eq("request_id", key)
-      .maybeSingle();
+    await this.runDueSeatRounds();
+    const prior = await this.query(
+      "table:setup_requests",
+      this.db
+        .from("setup_requests")
+        .select("action,result")
+        .eq("account_id", id)
+        .eq("request_id", key)
+        .maybeSingle(),
+    );
     if (prior.error) this.failure(prior.error.message);
     if (prior.data?.result) {
       if (prior.data.action !== command.type)
         throw new GameRuleError("Mã yêu cầu đã dùng cho thao tác khác.");
       return normalizeState(prior.data.result as RuntimeState);
     }
-    const state = await this.readState(id);
+    const state = await this.snapshot(id);
     if (state.revision !== revision)
       throw new GameRuleError("Dữ liệu đã thay đổi. Hãy tải lại trang.");
     const year = getWorldTime(
@@ -182,7 +233,7 @@ export class SupabaseGameRepository implements GameRepository {
       gameYear: year,
       random: () => randomBytes(4).readUInt32BE() / 0x100000000,
     });
-    const { data, error } = await this.db.rpc("commit_runtime_setup", {
+    const { data, error } = await this.rpc("commit_runtime_setup", {
       p_account_id: id,
       p_revision: revision,
       p_key: key,
@@ -205,12 +256,15 @@ export class SupabaseGameRepository implements GameRepository {
     key: string,
   ): Promise<ActionResult> {
     for (let attempt = 0; attempt < 8; attempt++) {
-      const replay = await this.db
-        .from("action_requests")
-        .select("action_code,result")
-        .eq("account_id", id)
-        .eq("idempotency_key", key)
-        .maybeSingle();
+      const replay = await this.query(
+        "table:action_requests",
+        this.db
+          .from("action_requests")
+          .select("action_code,result")
+          .eq("account_id", id)
+          .eq("idempotency_key", key)
+          .maybeSingle(),
+      );
       if (replay.error) this.failure(replay.error.message);
       if (replay.data) {
         if (replay.data.action_code !== code)
@@ -225,12 +279,15 @@ export class SupabaseGameRepository implements GameRepository {
           id: randomUUID,
         });
       } catch (error) {
-        const raced = await this.db
-          .from("action_requests")
-          .select("action_code,result")
-          .eq("account_id", id)
-          .eq("idempotency_key", key)
-          .maybeSingle();
+        const raced = await this.query(
+          "table:action_requests",
+          this.db
+            .from("action_requests")
+            .select("action_code,result")
+            .eq("account_id", id)
+            .eq("idempotency_key", key)
+            .maybeSingle(),
+        );
         if (raced.error) this.failure(raced.error.message);
         if (raced.data) {
           if (raced.data.action_code !== code)
@@ -257,19 +314,22 @@ export class SupabaseGameRepository implements GameRepository {
     if (code === "APPLY" || code === "WITHDRAW")
       return this.seatAction(id, code, key);
     for (let attempt = 0; attempt < 5; attempt++) {
-      const prior = await this.db
-        .from("action_requests")
-        .select("action_code,result")
-        .eq("account_id", id)
-        .eq("idempotency_key", key)
-        .maybeSingle();
+      const prior = await this.query(
+        "table:action_requests",
+        this.db
+          .from("action_requests")
+          .select("action_code,result")
+          .eq("account_id", id)
+          .eq("idempotency_key", key)
+          .maybeSingle(),
+      );
       if (prior.error) this.failure(prior.error.message);
       if (prior.data) {
         if (prior.data.action_code !== code)
           throw new GameRuleError("Mã yêu cầu đã dùng cho hành động khác.");
         return prior.data.result as ActionResult;
       }
-      const state = await this.readState(id);
+      const state = await this.snapshot(id);
       let computed: ReturnType<typeof processAction>;
       try {
         computed = processAction(
@@ -280,12 +340,15 @@ export class SupabaseGameRepository implements GameRepository {
         );
       } catch (error) {
         // A duplicate may have committed after the first ledger read and spent the last AP.
-        const replay = await this.db
-          .from("action_requests")
-          .select("action_code,result")
-          .eq("account_id", id)
-          .eq("idempotency_key", key)
-          .maybeSingle();
+        const replay = await this.query(
+          "table:action_requests",
+          this.db
+            .from("action_requests")
+            .select("action_code,result")
+            .eq("account_id", id)
+            .eq("idempotency_key", key)
+            .maybeSingle(),
+        );
         if (replay.error) this.failure(replay.error.message);
         if (replay.data) {
           if (replay.data.action_code !== code)
@@ -300,7 +363,7 @@ export class SupabaseGameRepository implements GameRepository {
         message: actionMessage(log),
       };
       const a = ACTIONS[code];
-      const { data, error } = await this.db.rpc("commit_game_action", {
+      const { data, error } = await this.rpc("commit_game_action", {
         p_account_id: id,
         p_revision: state.revision,
         p_key: key,
@@ -329,8 +392,8 @@ export class SupabaseGameRepository implements GameRepository {
     throw new GameRuleError("Có nhiều hành động đồng thời. Vui lòng thử lại.");
   }
   async logs(id: string, page: number): Promise<ActionLog[]> {
-    await this.runDueSeatRounds();
-    const { data, error } = await this.db.rpc("read_game_journal", {
+    await this.trySeatRounds();
+    const { data, error } = await this.rpc("read_game_journal", {
       p_account_id: id,
       p_page: page,
     });

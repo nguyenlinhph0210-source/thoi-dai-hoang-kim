@@ -37,10 +37,21 @@ Thứ tự trong SQL Editor:
 3. [0003_runtime_foundation.sql](supabase/migrations/0003_runtime_foundation.sql).
 4. [0004_promotion_requirements.sql](supabase/migrations/0004_promotion_requirements.sql).
 5. [0005_seats_and_promotion.sql](supabase/migrations/0005_seats_and_promotion.sql).
+6. [0006_fix_safeupdate.sql](supabase/migrations/0006_fix_safeupdate.sql).
 
-**Đã ở Chặng 3A chỉ chạy 0005 trước khi triển khai code này.** 0005 có begin/commit và chạy lại an toàn; không reset AP, mùa, đơn, ghế hoặc R đã khóa. Giải phóng ghế khởi đầu còn sót từ M1 theo quyết định 3B; giữ lịch sử các ghế khác. Không chạy lại migration phiên bản cũ sau migration mới vì sẽ hạ phiên bản RPC. Không sửa schema.sql hay 0002–0004.
+**Đã ở Chặng 3B chỉ chạy 0006 trước code này; đang ở 3A chạy 0005 rồi 0006.** 0005 có begin/commit và chạy lại an toàn; không reset AP, mùa, đơn, ghế hoặc R đã khóa. Giải phóng ghế khởi đầu còn sót từ M1 theo quyết định 3B; giữ lịch sử các ghế khác. Không chạy lại migration phiên bản cũ sau migration mới vì sẽ hạ phiên bản RPC; đặc biệt không chạy lại 0005 sau 0006 vì sẽ khôi phục trigger lỗi. Không sửa schema.sql hay 0002–0004.
 
 **chưa kiểm chứng trên Supabase thật**: môi trường này chưa có cấu hình dịch vụ. PGlite chạy migration/RPC/RLS với auth/role stub; không thay thế Supabase Auth hay kiểm thử khóa trên PostgreSQL nhiều kết nối. Làm checklist trong PROGRESS trước khi triển khai công khai.
+
+## Sửa lỗi pg-safeupdate và chế độ đọc dự phòng
+
+`seat_world_load` có thể cấp AP lazy, từ đó gọi trigger `seat_world_after_write`. UPDATE revision không WHERE trong 0005 bị pg-safeupdate của PostgREST chặn (21000), dù SQL Editor không chặn. 0006 thay đúng trigger bằng UPDATE giới hạn mùa ACTIVE; giữ các khóa/giao dịch/RLS và quyền service_role. Không sửa 0002–0005, không tắt extension.
+
+Đường đọc hồ sơ/đồng hồ/Quan chế/nhật ký thử xét phiên nhưng tiếp tục đọc nếu xét thất bại; Sân khấu hiển thị cảnh báo nhẹ. Lỗi đếm ghế giữ hồ sơ và báo bảng ghế chưa khả dụng. Snapshot tài khoản thực sự không đọc được vẫn báo lỗi, không giả dữ liệu/AP. Các đường ghi (setup, hành động, nộp đơn, trả ghế, chuyển nhánh) dùng xét phiên nghiêm ngặt; không chốt một phần hay nuốt lỗi.
+
+`supabaseDiagnostics.ts` chỉ log tên RPC/bảng cố định và bốn trường code/message/hint/details. Chỉ các thông điệp hằng đã duyệt được giữ nguyên; văn bản khác bị che vì Postgres có thể nhúng nguyên failing row hoặc khóa/email vào details. Không log đối số, header/URL, token, khóa, ID/chỉ số người chơi.
+
+`npm run lint:sql` chạy trong lint và workflow CI. Quét mọi migration, schema.sql và SQL literal ở src, kiểm tra DML trong thân hàm dollar-quoted, bỏ comment/chuỗi dữ liệu/row lock/upsert có khóa. Câu lỗi bất biến duy nhất trong 0005 được nhận diện chính xác và yêu cầu 0006 thay thế; mọi vi phạm mới làm CI fail. Đây là kiểm tra từ vựng, không phân tích đầy đủ SQL động hay chứng minh WHERE đúng nghiệp vụ; xem AGENTS 1.3 và checklist trong PROGRESS.
 
 ## Giao dịch hành động và ghế
 
