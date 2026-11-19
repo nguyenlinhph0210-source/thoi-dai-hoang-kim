@@ -11,10 +11,19 @@ import {
   SEAT_ROUND_WARNING,
   logSupabaseError,
 } from "../src/lib/supabaseDiagnostics";
+import { EVENT_CATALOG } from "../src/config/events";
+import type { CharacterEvent } from "../src/types/events";
 import ReadWarnings from "../src/components/ReadWarnings";
 
 async function fixture(
-  fault: "load" | "round" | "counts" | "snapshot" | "transport" | "table",
+  fault:
+    | "load"
+    | "round"
+    | "counts"
+    | "snapshot"
+    | "transport"
+    | "table"
+    | "expiry",
 ) {
   const memory = new InMemoryGameRepository();
   const id = randomUUID();
@@ -28,6 +37,20 @@ async function fixture(
   );
   await memory.setup(id, { type: "CONFIRM" }, state.revision, randomUUID());
   state = await memory.readState(id);
+  const expired: CharacterEvent = {
+    id: randomUUID(),
+    accountId: id,
+    characterId: state.character!.id,
+    seasonId: state.season.id,
+    definition: structuredClone(EVENT_CATALOG[0]),
+    stage: 0,
+    status: "PENDING",
+    createdAt: new Date(state.serverNow - 25 * 3600000).toISOString(),
+    expiresAt: new Date(state.serverNow - 1000).toISOString(),
+    resolvedAt: null,
+    history: [],
+  };
+  if (fault === "expiry") state.events = [expired];
   const calls: string[] = [];
   const postgres = {
     code: "21000",
@@ -46,22 +69,35 @@ async function fixture(
       (fault === "round" && name === "commit_seat_world") ||
       (fault === "counts" && name === "read_seat_board") ||
       (fault === "snapshot" && name === "runtime_snapshot") ||
-      (fault === "table" && name === "action_requests");
+      (fault === "table" && name === "action_requests") ||
+      (fault === "expiry" && name === "commit_event_world");
     if (failed)
       return new Response(JSON.stringify(postgres), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
     let data: unknown;
-    if (name === "seat_world_clock")
+    if (name === "event_work_clock") data = { due: fault === "expiry" };
+    else if (name === "seat_world_clock")
       data = { due: ["load", "round", "transport"].includes(fault) };
     else if (name === "seat_world_load")
       data = {
         version: 0,
         lastRound: 0,
         season: state.season,
-        serverNow: Date.parse(state.season.seasonStartTimestamp) + 2100000,
-        states: [],
+        serverNow:
+          fault === "expiry"
+            ? state.serverNow
+            : Date.parse(state.season.seasonStartTimestamp) + 2100000,
+        states: fault === "expiry" ? [state] : [],
+        eventData: {
+          instances: fault === "expiry" ? [expired] : [],
+          checks: [],
+          marks: [],
+          claims: [],
+          ledger: [],
+          records: [],
+        },
         applications: [],
         assignments: [],
         requirements: [],
@@ -198,4 +234,30 @@ test("diagnostics allow reviewed safe constants only; arbitrary tokens, email, U
   assert(!JSON.stringify(event).includes("Alice"));
   assert(!JSON.stringify(event).includes("01234567"));
   assert(!JSON.stringify(event).includes("secret"));
+});
+
+test("failed lazy event expiry logs its RPC, keeps a readable profile and locked expired card; writes remain strict", async (t) => {
+  const spy = t.mock.method(console, "error", () => {}),
+    f = await fixture("expiry");
+  const state = await f.repo.readState(f.id);
+  assert.equal(state.account.actionPoints, 10);
+  assert.equal(state.character!.status, "ACTIVE");
+  assert(state.readWarnings!.some((w) => w.includes("sự kiện")));
+  const projected = gameView(state);
+  assert.equal(projected.pendingEvents.length, 1);
+  assert(
+    projected.pendingEvents[0].choices.every((c) =>
+      c.lockReason?.includes("hết hạn"),
+    ),
+  );
+  assert(
+    spy.mock.calls.some((c) =>
+      JSON.stringify(c.arguments).includes("rpc:commit_event_world"),
+    ),
+  );
+  await assert.rejects(() => f.repo.act(f.id, "STUDY", randomUUID()));
+  assert(!f.calls.includes("commit_game_action"));
+  assert(
+    !JSON.stringify(spy.mock.calls.map((c) => c.arguments)).includes(f.id),
+  );
 });

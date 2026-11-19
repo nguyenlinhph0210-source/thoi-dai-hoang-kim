@@ -24,7 +24,17 @@ import {
 import type { SeatWorld } from "@/types/seats";
 import type { Season } from "@/types/game";
 
+import {
+  afterValidAction,
+  emptyEventData,
+  eventWorld,
+  expireDueEvents,
+  resolveEvent,
+} from "@/lib/eventEngine";
+import type { EventData, ResolveEventInput } from "@/types/events";
+import { logSupabaseError } from "@/lib/supabaseDiagnostics";
 export class InMemoryGameRepository implements GameRepository {
+  private eventData: EventData = emptyEventData();
   private seatData: Pick<
     SeatWorld,
     | "lastRound"
@@ -128,6 +138,7 @@ export class InMemoryGameRepository implements GameRepository {
   private world(): SeatWorld {
     return {
       ...this.seatData,
+      eventData: this.eventData,
       version: 0,
       season: this.season,
       serverNow: this.now(),
@@ -135,6 +146,14 @@ export class InMemoryGameRepository implements GameRepository {
     };
   }
   private saveWorld(world: SeatWorld) {
+    this.eventData = world.eventData ?? this.eventData;
+    for (const record of this.eventData.records) {
+      if (!this.requests.has(record.accountId))
+        this.requests.set(record.accountId, new Map());
+      this.requests
+        .get(record.accountId)!
+        .set(record.key, structuredClone(record.result));
+    }
     const {
       lastRound,
       applications,
@@ -154,6 +173,14 @@ export class InMemoryGameRepository implements GameRepository {
     for (const s of world.states) this.states.set(s.account.id, s);
   }
   private tick() {
+    if (
+      this.eventData.instances.some(
+        (e) => e.status === "PENDING" && Date.parse(e.expiresAt) <= this.now(),
+      )
+    )
+      this.saveWorld(
+        expireDueEvents(this.world(), { random: this.random, id: randomUUID }),
+      );
     const world = this.world();
     if (
       dueRound(world) <= world.lastRound &&
@@ -167,12 +194,23 @@ export class InMemoryGameRepository implements GameRepository {
       processSeatRounds(this.world(), { random: this.random, id: randomUUID }),
     );
   }
+  private tryTick(): string[] {
+    try {
+      this.tick();
+      return [];
+    } catch (error) {
+      logSupabaseError("operation:memory_housekeeping", error);
+      return [
+        "Một số biến cố chưa được đồng bộ. Hồ sơ của bạn vẫn được hiển thị.",
+      ];
+    }
+  }
   async runDueSeatRounds() {
     return this.serial("world", () => this.tick());
   }
   async seatBoard() {
     return this.serial("world", () => {
-      this.tick();
+      this.tryTick();
       return seatBoard(this.world());
     });
   }
@@ -199,13 +237,20 @@ export class InMemoryGameRepository implements GameRepository {
   }
   async readState(id: string) {
     return this.serial(id, () => {
-      this.tick();
-      return structuredClone(seatState(this.world(), this.refresh(id)));
+      const warnings = this.tryTick();
+      const state = seatState(this.world(), this.refresh(id));
+      state.readWarnings = warnings;
+      state.events = this.eventData.instances.filter(
+        (e) => e.characterId === state.character?.id && e.status === "PENDING",
+      );
+      return structuredClone(state);
     });
   }
   async activeSeason() {
-    await this.runDueSeatRounds();
-    return structuredClone(this.season);
+    return this.serial("world", () => {
+      this.tryTick();
+      return structuredClone(this.season);
+    });
   }
   async setup(
     id: string,
@@ -244,6 +289,19 @@ export class InMemoryGameRepository implements GameRepository {
       }
       next.revision = state.revision + 1;
       this.states.set(id, next);
+      const destinyDelta =
+        next.account.destinyPoints - state.account.destinyPoints;
+      if (destinyDelta !== 0)
+        this.eventData.ledger.push({
+          id: randomUUID(),
+          accountId: id,
+          seasonId: state.season.id,
+          calamityCode: null,
+          delta: destinyDelta,
+          reason: "REROLL",
+          reference: key,
+          createdAt: new Date(state.serverNow).toISOString(),
+        });
       if (command.type === "CONFIRM" && next.character?.promotionRequirements) {
         const req = next.character.promotionRequirements;
         if (
@@ -260,31 +318,68 @@ export class InMemoryGameRepository implements GameRepository {
       return structuredClone(next);
     });
   }
-  async act(id: string, code: ActionCode, key: string) {
+  async act(
+    id: string,
+    code: ActionCode,
+    key: string,
+    choice?: ResolveEventInput,
+  ) {
     return this.serial(id, () => {
       this.tick();
       const prior = this.requests.get(id)?.get(key);
       if (prior) {
-        if (prior.log.actionCode !== code)
+        const saved = this.eventData.records.find(
+          (r) => r.accountId === id && r.key === key,
+        );
+        if (
+          prior.log.actionCode !== code ||
+          (code === "RESOLVE_EVENT" &&
+            (saved?.payload.eventId !== choice?.eventId ||
+              saved?.payload.choiceCode !== choice?.choiceCode ||
+              (choice?.stage !== undefined &&
+                saved?.payload.stage !== choice.stage)))
+        )
           throw new GameRuleError("Mã yêu cầu đã dùng cho hành động khác.");
         return structuredClone(prior);
       }
       const state = this.refresh(id);
-      let next: RuntimeState;
+      let world = structuredClone(eventWorld(this.world()));
       let result: ActionResult;
-      if (code === "APPLY" || code === "WITHDRAW") {
-        const changed = applyForPromotion(this.world(), id, code, {
+      if (code === "RESOLVE_EVENT") {
+        if (!choice) throw new GameRuleError("Hãy chọn một phương án sự kiện.");
+        const changed = resolveEvent(world, id, choice, key, {
           random: this.random,
           id: randomUUID,
         });
-        this.saveWorld(changed.world);
-        next = changed.world.states.find((s) => s.account.id === id)!;
+        world = changed.world;
         result = changed.result;
       } else {
-        const computed = processAction(state, code, randomUUID(), this.random);
-        next = computed.state;
-        result = { log: computed.log, message: actionMessage(computed.log) };
+        if (code === "APPLY" || code === "WITHDRAW") {
+          const changed = applyForPromotion(world, id, code, {
+            random: this.random,
+            id: randomUUID,
+          });
+          world = eventWorld(changed.world);
+          result = changed.result;
+        } else {
+          const computed = processAction(
+            state,
+            code,
+            randomUUID(),
+            this.random,
+          );
+          world.states[world.states.findIndex((s) => s.account.id === id)] =
+            computed.state;
+          result = { log: computed.log, message: actionMessage(computed.log) };
+        }
+        if (code !== "WITHDRAW")
+          afterValidAction(world, id, result.log, {
+            random: this.random,
+            id: randomUUID,
+          });
       }
+      this.saveWorld(world);
+      const next = world.states.find((s) => s.account.id === id)!;
       const log = result.log;
       this.states.set(id, next);
       if (!this.meritDays.has(id)) this.meritDays.set(id, new Map());
@@ -292,7 +387,10 @@ export class InMemoryGameRepository implements GameRepository {
         .get(id)!
         .set(utc7Date(state.serverNow), next.meritUsedToday);
       const mark = `${log.characterId}:${state.season.id}:${log.worldTime.currentGameWeek}`;
-      if (code !== "WITHDRAW" && !this.weekMarks.has(mark))
+      if (
+        (log.apSpent > 0 || code === "RESOLVE_EVENT") &&
+        !this.weekMarks.has(mark)
+      )
         this.weekMarks.set(mark, log.id);
       if (!this.usageDays.has(id)) this.usageDays.set(id, new Map());
       this.usageDays
@@ -300,16 +398,20 @@ export class InMemoryGameRepository implements GameRepository {
         .set(utc7Date(state.serverNow), structuredClone(next.usage));
       if (!this.requests.has(id)) this.requests.set(id, new Map());
       this.requests.get(id)!.set(key, structuredClone(result));
-      this.journal.set(id, [log, ...(this.journal.get(id) ?? [])]);
+      if (code !== "RESOLVE_EVENT")
+        this.journal.set(id, [log, ...(this.journal.get(id) ?? [])]);
       return structuredClone(result);
     });
   }
   async logs(id: string, page: number) {
     return this.serial(id, () => {
-      this.tick();
+      this.tryTick();
       return structuredClone(
         [
           ...(this.journal.get(id) ?? []),
+          ...this.eventData.records
+            .filter((r) => r.accountId === id)
+            .map((r) => r.result.log),
           ...this.seatData.history
             .filter((h) => h.accountId === id)
             .map((h) => h.journal),

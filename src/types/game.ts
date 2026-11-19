@@ -61,6 +61,7 @@ export interface Character extends CharacterStats {
   startGameYear: number;
   treatmentsRemaining: number;
   actionLocked: boolean;
+  investigationPending?: boolean;
   status: CharacterStatus;
   suspicionFloor: number;
   promotionRequirements: PromotionRequirements | null;

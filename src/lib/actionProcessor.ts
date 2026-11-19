@@ -82,6 +82,8 @@ export function processAction(
   id: string,
   random: RandomSource = Math.random,
 ): { state: RuntimeState; log: ActionLog } {
+  if (code === "RESOLVE_EVENT")
+    throw new GameRuleError("Hãy chọn một phương án trong thẻ sự kiện.");
   const reason = actionLockReason(state, code);
   if (reason) throw new GameRuleError(reason);
   const c = state.character!;

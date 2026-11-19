@@ -88,21 +88,18 @@
   - Chỉ lượt có hành động thực sự mới kích hoạt kiểm tra sự kiện; cấm bấm kết thúc lượt rỗng để quay sự kiện.
   - Các phần thưởng lặp lại, cơ hội nhận công trạng, điểm xếp hạng và tăng trưởng chỉ số phải có hạn mức theo ngày thực (`daily_cap`) để chống cày vô hạn.
 
-### 2.3. Hệ thống Sự kiện Tuần & Phân loại Sự kiện
-- **Xác suất Sự kiện Ngẫu nhiên Cá nhân:**
-  - Mỗi tuần trong game (`currentGameWeek`), khi nhân vật thực hiện **hành động hợp lệ đầu tiên của tuần đó**, máy chủ kiểm tra xác suất đúng 1 lần:
-    - **40%:** Xuất hiện 1 sự kiện ngẫu nhiên cá nhân.
-    - **60%:** Không xuất hiện sự kiện.
-  - Không thể dùng thêm AP trong cùng tuần để quay lại kết quả. Người chơi không hoạt động trong tuần đó không được nhận bù.
-  - Sự kiện chưa giải quyết được lưu trạng thái chờ (`PENDING`) theo thời hạn kịch bản; quá hạn sẽ tự động áp dụng kết cục bỏ qua (trừ sự kiện bắt buộc).
-- **6 Nhóm Sự kiện trong Game:**
-  1. `NORMAL` (Thông thường): Xuất hiện thường xuyên, ảnh hưởng nhỏ đến chỉ số hoặc quan hệ.
-  2. `RARE` (Hiếm): Yêu cầu điều kiện riêng, mang đến cơ hội hoặc chứng cứ đặc biệt.
-  3. `DANGEROUS` (Nguy hiểm): Có khả năng gây thất sủng, mất chức, thương tích hoặc bị điều tra.
-  4. `GREAT_CALAMITY` (Đại kiếp nạn): Sự kiện sinh tử hoặc khủng hoảng chính trị lớn; vượt qua hợp lệ thưởng **+1 Điểm Thiên Mệnh**.
-  5. `MAIN_STORY` (Kịch bản chính): Thuộc tuyến cốt truyện của mùa, kích hoạt theo điều kiện riêng.
-  6. `COURT_WIDE` (Toàn triều): Ảnh hưởng đến nhiều người chơi và cục diện chính trị toàn triều.
-  *(Lưu ý: Giới hạn 40%/tuần chỉ áp dụng cho sự kiện ngẫu nhiên cá nhân; các sự kiện `MAIN_STORY`, `PVP` và `COURT_WIDE` kích hoạt theo điều kiện riêng).*
+### 2.3. Sự kiện cá nhân theo tuần (Chặng 4A)
+
+- Phạm vi hiện tại: `NORMAL`, `RARE`, `DANGEROUS`, `GREAT_CALAMITY`, tra xét bắt buộc và lời triệu kiến Hậu cung. `MAIN_STORY`, `COURT_WIDE`, `PVP` chỉ giữ kiểu dữ liệu, chưa có logic. Quy tắc tử vong mục 6.1 để Chặng 5; 4A không có kết cục tử vong/giáng phẩm.
+- Hành động hợp lệ đầu tiên của mỗi `(character_id, season_id, currentGameWeek)` quay đúng một lần: **40% có sự kiện, 60% không**. RNG phía server; ghi `character_week_marks`, `weekly_event_checks` cùng giao dịch hành động/AP/ledger. Retry hoặc request đồng thời không quay lại. Không hoạt động thì không được bù; đọc trang, xử lý hết hạn tự động và rút đơn không quay. Lựa chọn sự kiện thực sự (kể cả 0 AP) là hành động hợp lệ.
+- Nhóm có trọng số TEMP **NORMAL 65 / RARE 20 / DANGEROUS 13 / GREAT_CALAMITY 2**. Chọn trong các sự kiện hợp nhánh, tầng phẩm, trạng thái, chỉ số và cooldown. Nhóm rỗng thì lùi NORMAL; vẫn rỗng thì ghi không có sự kiện. Thẻ `HARM` nhân trọng số `(1 + ambushChanceBonus)`, `SLANDER` nhân `(1 + slanderChanceBonus)` từ getRiskModifiers; có cả hai thì nhân cả hai, không đổi xác suất nhóm.
+- Tối đa **3 PENDING**/nhân vật. Đủ ba thì vẫn lưu kết quả quay tuần nhưng không tạo thêm. Hạn theo **giờ thực** TEMP: NORMAL24h, RARE36h, DANGEROUS12h, GREAT_CALAMITY24h. Hết hạn áp dụng defaultOutcome đúng một lần, không tốn AP; sự kiện bắt buộc có mặc định xấu. Đọc trạng thái xử lý lazy, lỗi ghi log an toàn và cảnh báo nhẹ nhưng vẫn đọc hồ sơ; đường ghi luôn nghiêm ngặt/nguyên tử.
+- Sau hành động hoặc kết cục, `suspicion >= 80` tạo tra xét: Văn/Võ bởi Đô sát viện, Nội/Hậu cung bởi Cung chính ty; cooldown **14 ngày game**. Khi còn tra xét chờ thì chặn nộp đơn dù Nghi Kỵ đã giảm. Có tự biện bạch (xác suất theo int/hp), chi bạc dàn xếp (đúng quy tắc RUMOR/sàn+5 khi rep<150), nhận phạt. Chỉ mất bạc/đổi chỉ số/giảm Nghi Kỵ; không giáng phẩm/tử hình (TODO(spec), Chặng 5/6).
+- TODO(spec), cách đọc an toàn cho trần ba: tra xét có ưu tiên trước quay tuần. Nếu đã đầy, giữ cờ tra xét hoãn, chặn thăng phẩm và tạo sự kiện ngay khi một lựa chọn/kết cục giải phóng chỗ; không bỏ tra xét, không ép kết cục sớm của sự kiện khác, không tạo sự kiện thứ tư.
+- Lời triệu kiến RARE: chỉ Nội cung cấp2–6, cha>=150/int>=100/suspicion<=45. Chấp nhận gọi đúng hàm chuyển nhánh thuần/RPC 3B với guard hiện tại; từ chối không hậu quả, cooldown **30 ngày game từ lúc từ chối**. Giữ công trạng, reset tại vị và các quy tắc 5.4.
+- Dữ liệu ở `src/config/events.ts`, kiểu ở `src/types/events.ts`, số TEMP ở balance.ts. Kho hiện có **20 SAMPLE_DRAFT**, `fictional: true`, chỉ vai trò chung. Kiểm tra mã, nhánh, chi phí, xác suất, giai đoạn/tham chiếu, kết cục khi nạp. Định nghĩa được chụp và khóa khi tạo sự kiện, không có API reroll.
+- TODO(spec): giữ một hạn ban đầu cho toàn bộ các giai đoạn; cooldown đếm chênh lệch ngày lịch game từ xuất hiện (ngoại lệ từ chối Hậu cung ở trên). Xác suất mẫu dùng int/hp trước chi phí, contest trừ nguy cơ thất bại 0.30 khi hp<20 và giữ tối thiểu0.05. Tăng dương/suy kiệt/cộng hưởng/nhân quả dùng engine 3.3; sự kiện không cộng công trạng. Nhân vật bệnh nặng phải điều trị trước khi tự chọn, nhưng mặc định hết hạn vẫn chạy.
+- Khi triển khai 4A, dấu hành động tuần có sẵn mà chưa có kết quả quay được ghi LEGACY_MARK, không hồi tố một lần quay. Kết quả tuần cũ của M1 được giữ, không đoán nhân vật lịch sử; khóa mới theo nhân vật thay cho khóa tài khoản của bảng M1.
 
 ---
 
@@ -410,12 +407,12 @@ Tử vong là vĩnh viễn đối với nhân vật hiện tại, nhưng tài kh
 | Ngân lượng kiếp cũ (`characterSilver`), Vật phẩm, Chứng cứ | **Xóa toàn bộ (`0`)** | Không thừa kế tài sản giữa các kiếp. |
 
 ### 6.3. Hệ thống Điểm Thiên Mệnh (`destinyPoints`)
-- **Bản chất:** Tài nguyên cấp Tài khoản (`account.destinyPoints`), giá trị khởi đầu `= 0`, không giới hạn trần tích lũy, **tồn tại vĩnh viễn xuyên kiếp và xuyên các mùa giải** (không bị reset khi nhân vật chết hay khi kết thúc triều đại).
-- **2 Nguồn nhận duy nhất:**
-  1. **Vượt qua Đại kiếp nạn (`GREAT_CALAMITY`):**
-     - Thưởng **+1 Điểm Thiên Mệnh** ngay khi đạt kết cục thành công của một Đại kiếp nạn (nếu sự kiện có nhiều giai đoạn thì chỉ thưởng 1 lần sau khi hoàn thành toàn bộ giai đoạn cuối).
-     - **Quy tắc chống farm trùng (Anti-Exploit):** Tạo bảng `account_calamity_claims(account_id, season_id, calamity_code)`. Mỗi mã `calamity_code` chỉ thưởng Thiên Mệnh **tối đa 1 lần cho mỗi tài khoản trong cùng một mùa giải**, ngăn chặn hành vi cố tình tự sát và trùng sinh để cày lại cùng một Đại kiếp nạn.
-  2. **Phần thưởng Xếp hạng Cuối mùa:** Phân phát khi đóng mùa giải theo Bảng thưởng mục 6.4.
+
+- Thuộc tài khoản, khởi đầu0, tồn tại xuyên kiếp/mùa, không reset khi nhân vật chết hay khi đóng mùa.
+- Hai nguồn nhận: vượt trọn vẹn Đại kiếp nạn và thưởng cuối mùa. 4A chỉ cài nguồn Đại kiếp nạn; thưởng mùa để chặng sau.
+- Đại kiếp nạn nhiều giai đoạn chỉ thưởng **+1** sau thành công giai đoạn cuối, không thưởng chặng giữa/thất bại/hết hạn. `account_calamity_claims` khóa duy nhất `(account_id, season_id, calamity_code)` chống farm xuyên nhân vật trong cùng mùa; cùng mã ở mùa mới có thể nhận lại. Khi đã nhận, kết quả nói rõ không có điểm thêm.
+- `destiny_ledger` ghi delta/lý do/tham chiếu và cập nhật accounts trong **cùng transaction**: +1 cho GREAT_CALAMITY, -1 cho đổi thân phận có trả điểm. Retry trả đúng kết quả cũ, không ghi/thu/thưởng thêm. Không hồi tố sổ cho số dư/lịch sử trước 0007 và không reset số dư đó.
+- Trong 4A, thất bại Đại kiếp nạn = HP0/SEVERELY_ILL, cần5 lần Điều trị, mất50% ngân lượng còn sau chi phí (TEMP; số dư còn lại làm tròn xuống), giảm fav (TEMP). Không tử vong hay giáng phẩm; TODO(spec) kết cục tử vong ở Chặng 5.
 
 ### 6.4. Kết thúc Mùa giải, Bảng Xếp Hạng & Phần thưởng Cuối mùa
 - **Quy tắc tính điểm Xếp hạng (Chống cày nhiều kiếp cộng dồn):**

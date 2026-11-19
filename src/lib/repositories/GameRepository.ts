@@ -10,7 +10,12 @@ export interface GameRepository {
     revision: number,
     key: string,
   ): Promise<RuntimeState>;
-  act(accountId: string, code: ActionCode, key: string): Promise<ActionResult>;
+  act(
+    accountId: string,
+    code: ActionCode,
+    key: string,
+    choice?: import("@/types/events").ResolveEventInput,
+  ): Promise<ActionResult>;
   logs(accountId: string, page: number): Promise<ActionLog[]>;
   runDueSeatRounds(): Promise<void>;
   seatBoard(): Promise<import("@/types/seats").SeatBoardRow[]>;

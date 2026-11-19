@@ -159,3 +159,19 @@ h1 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 3.4v
 .seat-target { background:#b98a3020; }
 .seat-application { border-top:1px solid #b3935860; margin-top:1rem; padding-top:.7rem; font-size:.8rem; }
 .seat-application .secondary-button { width:100%; padding:.65rem; }
+
+.personal-events { margin:1.2rem 0; }
+.event-count { font-size:.8rem; color:#924133; }
+.event-card { border:1px solid #b3935870; padding:1rem; margin:.8rem 0; background:#f8f0df; }
+.event-mandatory { border-left:3px solid #9a3025; }
+.event-card h3 { font-family:Georgia,serif; font-size:1.15rem; margin:.6rem 0; color:#7b3027; }
+.event-card p { font-size:.85rem; line-height:1.7; }
+.event-meta { display:flex; justify-content:space-between; gap:.5rem; flex-wrap:wrap; font-size:.7rem; color:#8d6a3b; }
+.event-meta span { display:flex; align-items:center; gap:.25rem; }
+.event-choices { display:grid; gap:.6rem; margin-top:.8rem; }
+.event-choices button { width:100%; text-align:left; padding:.65rem; }
+.event-choices small { display:block; }
+.event-result { margin:1rem 0; padding:1rem; }
+.event-result h2 { font-size:1.2rem; color:#7b3027; }
+.event-result p { font-size:.85rem; margin-top:.5rem; }
+.destiny-points { display:flex; flex-wrap:wrap; gap:.4rem; justify-content:space-between; font-size:.8rem; padding:.75rem 0; color:#7b592c; }

@@ -123,7 +123,8 @@ export function evaluatePromotionEligibility(
     examDay !== null &&
     day >= examDay &&
     day < expires!;
-  const underInvestigation = character.suspicion >= 80;
+  const underInvestigation =
+    character.suspicion >= 80 || !!character.investigationPending;
   let reason: string | null = null;
   if (!rank?.nextRankId)
     reason = "Đã đạt phẩm cao nhất, không còn phẩm mục tiêu.";

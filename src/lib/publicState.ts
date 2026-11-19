@@ -24,9 +24,11 @@ import {
 } from "./promotionEligibility";
 import { ACTIONS } from "@/config/actions";
 import { actionLockReason } from "./actionProcessor";
+import { publicPendingEvents } from "./eventEngine";
 export function gameView(state: RuntimeState): GameView {
   return {
     ...publicState(state),
+    pendingEvents: publicPendingEvents(state),
     season: state.season,
     serverNow: state.serverNow,
     seatApplication: state.seatApplication ?? null,

@@ -16,6 +16,14 @@ export const LOG_PAGE_SIZE = 20;
 export const APPLY_AP_COST = 1; // TEMP
 export const APPLY_DAILY_CAP = 2; // TEMP
 export const ACTION_BALANCE = {
+  RESOLVE_EVENT: {
+    meritGain: 0,
+    apCost: 0,
+    silverCost: 0,
+    hpCost: 0,
+    gains: {},
+    dailyCap: 2147483647,
+  },
   APPLY: {
     meritGain: 0,
     apCost: APPLY_AP_COST,
@@ -141,3 +149,35 @@ export const EXAM_BALANCE = {
 
 /** TEMP — seat applications. Weekly boundary comes from the world calendar. */
 export const APPLICATION_EXPIRY_GAME_DAYS = 28;
+
+/** TEMP — personal events. All sample costs/effects/probability coefficients live here. */
+export const EVENT_BALANCE = {
+  weeklyChance: 0.4,
+  groupWeights: { NORMAL: 65, RARE: 20, DANGEROUS: 13, GREAT_CALAMITY: 2 },
+  expiresHours: { NORMAL: 24, RARE: 36, DANGEROUS: 12, GREAT_CALAMITY: 24 },
+  pendingCap: 3,
+  investigationCooldownDays: 14,
+  haremRefusalCooldownDays: 30,
+  defaultCooldownDays: 7,
+  calamityCooldownDays: 60,
+  calamitySilverLoss: 0.5,
+  calamityFavLoss: 30,
+  choiceAp: 1,
+  rewardSmall: 5,
+  rewardLarge: 12,
+  silverReward: 10,
+  silverCost: 10,
+  hpLoss: 10,
+  suspicionGain: 8,
+  investigationSuspicionRelief: 25,
+  rumorSuspicionRelief: 15,
+  probability: {
+    base: 0.35,
+    intDivisor: 2000,
+    hpDivisor: 400,
+    min: 0.2,
+    max: 0.95,
+    contest: true,
+  },
+  fatigueMinimum: 0.05,
+} as const;
