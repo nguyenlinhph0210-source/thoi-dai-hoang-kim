@@ -15,6 +15,7 @@ export interface RuntimeState extends SetupState {
   seatApplication?: import("./seats").PublicSeatApplication | null;
   nextSeatRoundAt?: number;
   seatBoard?: import("./seats").SeatBoardRow[];
+  readWarnings?: string[];
 }
 export interface ActionLog {
   id: string;
@@ -58,6 +59,7 @@ export interface GameView extends PublicSetupState {
   seatApplication?: import("./seats").PublicSeatApplication | null;
   nextSeatRoundAt?: number;
   seatBoard?: import("./seats").SeatBoardRow[];
+  readWarnings?: string[];
   suspicionWarning: boolean;
   actionLocks: Record<ActionCode, string | null>;
   promotion:

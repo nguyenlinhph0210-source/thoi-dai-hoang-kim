@@ -1,3 +1,52 @@
+# Sửa lỗi vận hành Chặng 3B — pg-safeupdate (0006)
+
+## Nguyên nhân và rà soát
+
+`readState → runDueSeatRounds → seat_world_load → runtime_snapshot → refresh_runtime_ap → UPDATE accounts → seat_world_after_write`. Trigger trong 0005 chạy `UPDATE seat_world_state SET revision=revision+1` thiếu WHERE; pg-safeupdate trên PostgREST trả 21000, Vercel nhận GameRuleError và trang chính lỗi. SQL Editor không bật cùng kiểm tra nên việc migration chạy được không chứng minh RPC hoạt động qua API.
+
+| Nguồn đã rà soát | Kết quả |
+| --- | --- |
+| schema.sql (Chặng 1; repository không có 0001) | UPDATE/DELETE thực tế có WHERE; upsert giới hạn bởi khóa xung đột |
+| 0002 | Bổ sung enum, không có DML không WHERE |
+| 0003, 0004 | UPDATE theo account/character/request hoặc điều kiện backfill; row lock và upsert không phải DML toàn bảng |
+| 0005 và chuỗi RPC xét ghế | Một UPDATE không WHERE trong seat_world_after_write; các UPDATE/DELETE còn lại có điều kiện; SQL động chỉ tạo/xóa trigger/quyền |
+| SQL TypeScript sản xuất (src) | Không có SQL UPDATE/DELETE trực tiếp; dùng Supabase RPC/query builder. Fixture SQL trong tests được tách khỏi đường sản xuất |
+
+## Đã sửa
+
+- Migration mới **0006_fix_safeupdate.sql**, begin/commit, CREATE OR REPLACE đúng chữ ký trigger; WHERE season_id thuộc mùa ACTIVE, giữ revision cho CAS, không sửa mùa ENDED. Giữ REVOKE anon/authenticated/PUBLIC, GRANT service_role, chạy lại an toàn; không sửa migration cũ hoặc tắt pg-safeupdate.
+- Repository ghi log tên RPC/bảng và code/message/hint/details. Chỉ giữ thông điệp hằng đã duyệt; chẩn đoán khác bị che mặc định, kể cả failing row/UUID/email/tên tự do/token/khóa. Không log error object, bộ lọc, đối số, URL/header hay dữ liệu người chơi. Thông báo lỗi người dùng vẫn thân thiện.
+- Đọc trạng thái/snapshot, Quan chế, mùa, nhật ký cố gắng xét phiên nhưng không phụ thuộc việc xét thành công. Hồ sơ còn đọc được tiếp tục hiển thị với cảnh báo nhẹ; bảng ghế lỗi thì để trống kèm cảnh báo. Snapshot tài khoản lỗi thật vẫn báo lỗi; không tạo dữ liệu/AP giả.
+- Đường ghi setup/action/APPLY/thăng phẩm/trả ghế/chuyển nhánh vẫn nghiêm ngặt và nguyên tử; không dùng đường đọc dự phòng để chốt dữ liệu.
+- Test tĩnh quét mọi migration, schema.sql và SQL literal/template src; CI chạy qua lint/test. Bỏ comment/chuỗi dữ liệu, quét thân AS/DO dollar-quoted, phân biệt row lock/trigger/upsert với UPDATE thực tế và không nhận WHERE trong subquery thay cho WHERE ngoài.
+
+## Giới hạn và quyết định để giữ migration bất biến
+
+0005 phải giữ nguyên nên không thể đồng thời xóa câu lỗi lịch sử khỏi file và giữ lịch sử bất biến. Guard nhận diện **chính xác một câu lỗi đó trong đúng 0005**, bắt buộc có CREATE OR REPLACE trong 0006 và không cho phép vi phạm mới ở bất cứ file nào. Test PGlite kiểm chứng bản thay thế thực sự được nạp. Đây không phải miễn kiểm tra cả migration cũ.
+
+Guard là bộ kiểm tra từ vựng, không phải parser PostgreSQL hoặc công cụ chứng minh WHERE đúng nghiệp vụ. SQL ghép chuỗi/EXECUTE, thân hàm viết kiểu chuỗi đơn và template phức tạp vẫn cần rà soát riêng. Không có SQL động DML trong mã sản xuất đã rà soát.
+
+PGlite không nạp được pg-safeupdate. Test mô phỏng chặn trigger lỗi (21000), chạy đúng chuỗi RPC/cấp AP, rồi áp dụng 0006 hai lần và xác nhận đọc được, revision ACTIVE tăng, ENDED giữ nguyên, quyền hàm không đổi. **chưa kiểm chứng trên Supabase thật**; không tuyên bố đã kiểm thử extension/PostgREST thực tế.
+
+## Việc người dùng phải làm
+
+1. Trên dự án đã ở 3B, chạy **supabase/migrations/0006_fix_safeupdate.sql** trong Supabase SQL Editor trước khi triển khai code mới. Có thể chạy lại; không chạy lại 0005 sau 0006 vì sẽ khôi phục trigger lỗi.
+2. Dự án mới: schema.sql một lần → 0002 riêng → 0003 → 0004 → 0005 → 0006. Không sửa file đã chạy.
+3. Không cần biến môi trường mới; giữ ba biến Supabase hiện có. Không gửi khóa qua chat/PR và không tắt pg-safeupdate.
+4. Kiểm tra qua PostgREST/Vercel (không chỉ SQL Editor): đăng nhập tài khoản có AP chưa cấp hôm nay; đọc trang chính, world-time và Quan chế, xác nhận không còn 400/21000. Với service_role ở công cụ server riêng, gọi seat_world_load; không đưa khóa vào trình duyệt.
+5. Trên dự án test gây lỗi xét phiên có kiểm soát: hồ sơ/AP/nhật ký còn hiển thị và có cảnh báo; log chỉ tên RPC/mã/chẩn đoán đã lọc, không có khóa/PII. Gửi APPLY phải thất bại mà không trừ AP/ghi đơn một phần. Khôi phục lỗi, đồng bộ lại để hết cảnh báo.
+6. Kiểm tra nộp/rút, tranh ghế đồng thời, AP/cap/revision và idempotency vẫn như checklist 3B bên dưới.
+
+## Kiểm chứng
+
+- `npm run lint` (gồm guard SQL), `npm run typecheck`, production build: đạt.
+- `npm test`: **88 test đạt**, gồm toàn bộ 77 test cũ và 11 test mới về SQL guard, migration/trigger/RPC, đọc dự phòng và log không lộ dữ liệu.
+- **12 Playwright đạt** trên InMemory; có cảnh báo nhẹ, hồ sơ/AP còn hiển thị và cảnh báo mất khi đồng bộ khỏe lại. Bộ ghế/PGlite cũ nay chạy cả 0006 hai lần.
+- CI mới chạy lint/guard, typecheck, test và build khi push/PR. Không thêm dependency.
+- **chưa kiểm chứng trên Supabase thật**; PGlite mô phỏng chặn 21000, không nạp extension pg-safeupdate/PostgREST. Chưa chạy migration lên dịch vụ ngoài môi trường này.
+
+---
+
 # Chặng 3B — Ghế và thăng phẩm
 
 ## Đã làm
