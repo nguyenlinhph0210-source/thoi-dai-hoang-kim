@@ -16,6 +16,7 @@ export interface RuntimeState extends SetupState {
   nextSeatRoundAt?: number;
   seatBoard?: import("./seats").SeatBoardRow[];
   readWarnings?: string[];
+  events?: import("./events").CharacterEvent[];
 }
 export interface ActionLog {
   id: string;
@@ -34,6 +35,7 @@ export interface ActionLog {
   worldTime: WorldTime;
   meritGained?: number;
   meritAfter?: number;
+  event?: import("./events").EventResolutionInfo;
   promotion?: { fromRankId: string; toRankId: string; conversion: boolean };
   exam?: {
     success: boolean;
@@ -60,6 +62,7 @@ export interface GameView extends PublicSetupState {
   nextSeatRoundAt?: number;
   seatBoard?: import("./seats").SeatBoardRow[];
   readWarnings?: string[];
+  pendingEvents: import("./events").PublicPendingEvent[];
   suspicionWarning: boolean;
   actionLocks: Record<ActionCode, string | null>;
   promotion:

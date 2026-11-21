@@ -15,6 +15,13 @@ export interface ActionDefinition {
   dailyCap: number;
 }
 export const ACTIONS: Record<ActionCode, ActionDefinition> = {
+  RESOLVE_EVENT: {
+    code: "RESOLVE_EVENT",
+    name: "Giải quyết sự kiện",
+    description: "Chọn cách ứng xử trước biến cố.",
+    type: "NORMAL",
+    ...ACTION_BALANCE.RESOLVE_EVENT,
+  },
   APPLY: {
     code: "APPLY",
     name: "Nộp đơn",

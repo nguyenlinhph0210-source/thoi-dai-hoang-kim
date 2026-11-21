@@ -56,6 +56,7 @@ export interface StoredRequirement extends PromotionRequirements {
 }
 /** Server-private world. Never serialize it to a browser. */
 export interface SeatWorld {
+  eventData?: import("./events").EventData;
   version: number;
   lastRound: number;
   season: Season;

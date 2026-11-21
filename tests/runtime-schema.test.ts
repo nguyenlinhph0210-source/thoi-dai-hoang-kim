@@ -252,6 +252,8 @@ test("M2 migrations/RPC: rerunnable, atomic AP/actions, RLS, illness, pagination
         for (const name of [
           "0004_promotion_requirements.sql",
           "0005_seats_and_promotion.sql",
+          "0006_fix_safeupdate.sql",
+          "0007_personal_events.sql",
         ])
           await db.exec(
             await readFile(
@@ -306,18 +308,32 @@ test("M2 migrations/RPC: rerunnable, atomic AP/actions, RLS, illness, pagination
                   )
                 ).rows[0].v;
               else if (
+                name === "event_work_clock" ||
                 name === "seat_world_clock" ||
                 name === "seat_world_load" ||
                 name === "read_seat_board"
-              )
+              ) {
                 value = (
                   await db.query<{ v: unknown }>(`select public.${name}() as v`)
                 ).rows[0].v;
-              else if (name === "read_game_journal")
+                if (name === "seat_world_load" && forceRace) {
+                  (value as { states: RuntimeState[] }).states.find(
+                    (s) => s.account.id === other,
+                  )!.account.actionPoints = 0;
+                  forceRace = false;
+                }
+              } else if (name === "read_game_journal")
                 value = (
                   await db.query<{ v: unknown }>(
                     "select public.read_game_journal($1,$2) as v",
                     [body.p_account_id, body.p_page],
+                  )
+                ).rows[0].v;
+              else if (name === "commit_event_world")
+                value = (
+                  await db.query<{ v: unknown }>(
+                    "select public.commit_event_world($1,$2::jsonb) as v",
+                    [body.p_version, JSON.stringify(body.p_proposal)],
                   )
                 ).rows[0].v;
               else throw new Error("Unexpected RPC");

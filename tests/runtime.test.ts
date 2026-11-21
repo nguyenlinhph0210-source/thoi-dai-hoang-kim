@@ -34,7 +34,10 @@ function character() {
 }
 async function fixture() {
   let now = start;
-  const repo = new InMemoryGameRepository(() => now);
+  const repo = new InMemoryGameRepository(
+    () => now,
+    () => 0.99,
+  );
   const id = randomUUID();
   repo.registerAccount(id);
   let state = await repo.readState(id);

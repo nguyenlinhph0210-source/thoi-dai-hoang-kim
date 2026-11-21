@@ -40,8 +40,39 @@ export async function POST(request: NextRequest) {
       { error: "Hành động hoặc mã yêu cầu không hợp lệ.", retryable: false },
       { status: 400 },
     );
+  let choice: import("@/types/events").ResolveEventInput | undefined;
+  if (body.code === "RESOLVE_EVENT") {
+    if (
+      !("eventId" in body) ||
+      typeof body.eventId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        body.eventId,
+      ) ||
+      !("stage" in body) ||
+      typeof body.stage !== "number" ||
+      !Number.isSafeInteger(body.stage) ||
+      body.stage < 0 ||
+      !("choiceCode" in body) ||
+      typeof body.choiceCode !== "string" ||
+      !/^[A-Z][A-Z0-9_]{0,63}$/.test(body.choiceCode)
+    )
+      return NextResponse.json(
+        { error: "Phương án sự kiện không hợp lệ.", retryable: false },
+        { status: 400 },
+      );
+    choice = {
+      eventId: body.eventId,
+      choiceCode: body.choiceCode,
+      stage: body.stage,
+    };
+  }
   try {
-    const result = await gameRepository().act(user.id, body.code, body.key);
+    const result = await gameRepository().act(
+      user.id,
+      body.code,
+      body.key,
+      choice,
+    );
     return NextResponse.json(
       { message: result.message, log: publicLog(result.log) },
       { headers: { "Cache-Control": "no-store" } },

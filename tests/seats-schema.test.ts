@@ -29,6 +29,8 @@ test("0005/0006/PGlite: rerunnable pools, RPC transactions, CAS, exact replay, s
       "migrations/0005_seats_and_promotion.sql",
       "migrations/0006_fix_safeupdate.sql",
       "migrations/0006_fix_safeupdate.sql",
+      "migrations/0007_personal_events.sql",
+      "migrations/0007_personal_events.sql",
     ])
       await db.exec(
         await readFile(new URL(`../supabase/${name}`, import.meta.url), "utf8"),
@@ -53,6 +55,8 @@ test("0005/0006/PGlite: rerunnable pools, RPC transactions, CAS, exact replay, s
         )
       ).rows[0].v;
     const signatures: Record<string, string[]> = {
+      event_work_clock: [],
+      commit_event_world: ["p_version", "p_proposal"],
       seat_world_clock: [],
       seat_world_load: [],
       read_seat_board: [],

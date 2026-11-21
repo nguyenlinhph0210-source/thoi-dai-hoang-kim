@@ -31,9 +31,23 @@ import {
   SEAT_ROUND_WARNING,
   SEAT_BOARD_WARNING,
 } from "@/lib/supabaseDiagnostics";
+import {
+  afterValidAction,
+  eventWorld,
+  expireDueEvents,
+  resolveEvent,
+} from "@/lib/eventEngine";
+import { eventProposal } from "@/lib/eventPersistence";
+import type { EventWorld, ResolveEventInput } from "@/types/events";
 export class SupabaseGameRepository implements GameRepository {
   constructor(private db: SupabaseClient) {}
   private failure(message: string): never {
+    if (message.includes("EVENT_STAGE_CHANGED"))
+      throw new GameRuleError(
+        "Giai đoạn sự kiện đã thay đổi. Hãy đồng bộ lại trang.",
+      );
+    if (message.includes("EVENT_EXPIRED"))
+      throw new GameRuleError("Sự kiện đã hết hạn. Hãy đồng bộ lại trang.");
     if (/STALE_REVISION|RETRY_CLOCK/.test(message))
       throw new GameRuleError("Dữ liệu đã thay đổi. Hãy tải lại trang.");
     throw new GameRuleError(
@@ -56,22 +70,30 @@ export class SupabaseGameRepository implements GameRepository {
   private rpc(name: string, args?: Record<string, unknown>) {
     return this.query(`rpc:${name}`, this.db.rpc(name, args));
   }
-  private async trySeatRounds(): Promise<boolean> {
+  private async trySeatRounds(): Promise<string[]> {
+    const warnings: string[] = [];
+    try {
+      await this.expireEvents();
+    } catch (error) {
+      logSupabaseError("operation:expireEvents", error);
+      warnings.push(
+        "Một số sự kiện chưa được đồng bộ. Hồ sơ của bạn vẫn được hiển thị.",
+      );
+    }
     try {
       await this.runDueSeatRounds();
-      return true;
     } catch (error) {
-      // RPC failures were logged at their source. Also cover non-database engine errors.
       logSupabaseError("operation:runDueSeatRounds", error);
-      return false;
+      warnings.push(SEAT_ROUND_WARNING);
     }
+    return warnings;
   }
-  private async loadWorld(): Promise<SeatWorld> {
+  private async loadWorld(): Promise<EventWorld> {
     const { data, error } = await this.rpc("seat_world_load");
     if (error || !data) this.failure(error?.message ?? "Missing world");
     const world = data as SeatWorld;
     world.states = world.states.map(normalizeState);
-    return world;
+    return eventWorld(world);
   }
   private async commitWorld(
     change: SeatChange,
@@ -84,6 +106,28 @@ export class SupabaseGameRepository implements GameRepository {
     };
     if (characterId) args.p_character_id = characterId;
     return this.rpc(rpc, args);
+  }
+  private async expireEvents(): Promise<void> {
+    const clock = await this.rpc("event_work_clock");
+    if (clock.error || !clock.data)
+      this.failure(clock.error?.message ?? "Missing event clock");
+    if (!(clock.data as { due: boolean }).due) return;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const before = await this.loadWorld(),
+        after = expireDueEvents(before, {
+          random: secureRandom,
+          id: randomUUID,
+        });
+      if (!hasSeatChanges(before, after)) return;
+      const saved = await this.rpc("commit_event_world", {
+        p_version: before.version,
+        p_proposal: eventProposal(before, after),
+      });
+      if (!saved.error) return;
+      if (!/STALE_REVISION|RETRY_CLOCK/.test(saved.error.message))
+        this.failure(saved.error.message);
+    }
+    throw new GameRuleError("Có nhiều biến cố đồng thời. Vui lòng thử lại.");
   }
   async runDueSeatRounds(): Promise<void> {
     const { data, error } = await this.rpc("seat_world_clock");
@@ -130,6 +174,7 @@ export class SupabaseGameRepository implements GameRepository {
     });
   }
   async releaseSeats(characterId: string): Promise<void> {
+    await this.expireEvents();
     await this.runDueSeatRounds();
     const { error } = await this.rpc("release_seats", {
       p_character_id: characterId,
@@ -137,6 +182,7 @@ export class SupabaseGameRepository implements GameRepository {
     if (error) this.failure(error.message);
   }
   async convertInnerCourtToHarem(characterId: string): Promise<void> {
+    await this.expireEvents();
     await this.runDueSeatRounds();
     for (let attempt = 0; attempt < 8; attempt++) {
       const before = await this.loadWorld();
@@ -177,9 +223,9 @@ export class SupabaseGameRepository implements GameRepository {
     };
   }
   async readState(id: string): Promise<RuntimeState> {
-    const roundsOk = await this.trySeatRounds();
+    const warnings = await this.trySeatRounds();
     const state = await this.snapshot(id);
-    state.readWarnings = roundsOk ? [] : [SEAT_ROUND_WARNING];
+    state.readWarnings = warnings;
     try {
       state.seatBoard = await this.readSeatCounts();
     } catch {
@@ -202,6 +248,7 @@ export class SupabaseGameRepository implements GameRepository {
     revision: number,
     key: string,
   ): Promise<RuntimeState> {
+    await this.expireEvents();
     await this.runDueSeatRounds();
     const prior = await this.query(
       "table:setup_requests",
@@ -250,144 +297,103 @@ export class SupabaseGameRepository implements GameRepository {
     if (error || !data) this.failure(error?.message ?? "Missing result");
     return normalizeState(data as RuntimeState);
   }
-  private async seatAction(
+  async act(
     id: string,
-    code: "APPLY" | "WITHDRAW",
+    code: ActionCode,
     key: string,
+    choice?: ResolveEventInput,
   ): Promise<ActionResult> {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const replay = await this.query(
-        "table:action_requests",
-        this.db
-          .from("action_requests")
-          .select("action_code,result")
-          .eq("account_id", id)
-          .eq("idempotency_key", key)
-          .maybeSingle(),
-      );
-      if (replay.error) this.failure(replay.error.message);
-      if (replay.data) {
-        if (replay.data.action_code !== code)
-          throw new GameRuleError("Mã yêu cầu đã dùng cho hành động khác.");
-        return replay.data.result as ActionResult;
-      }
-      const before = await this.loadWorld();
-      let computed: ReturnType<typeof applyForPromotion>;
-      try {
-        computed = applyForPromotion(before, id, code, {
-          random: secureRandom,
-          id: randomUUID,
-        });
-      } catch (error) {
-        const raced = await this.query(
-          "table:action_requests",
-          this.db
-            .from("action_requests")
-            .select("action_code,result")
-            .eq("account_id", id)
-            .eq("idempotency_key", key)
-            .maybeSingle(),
-        );
-        if (raced.error) this.failure(raced.error.message);
-        if (raced.data) {
-          if (raced.data.action_code !== code)
-            throw new GameRuleError("Mã yêu cầu đã dùng cho hành động khác.");
-          return raced.data.result as ActionResult;
-        }
-        throw error;
-      }
-      const saved = await this.commitWorld({
-        before,
-        after: computed.world,
-        operation: code,
-        request: { accountId: id, key, code, result: computed.result },
-      });
-      if (!saved.error && saved.data) return saved.data as ActionResult;
-      if (!/STALE_REVISION|RETRY_CLOCK/.test(saved.error?.message ?? ""))
-        this.failure(saved.error?.message ?? "Missing seat result");
-      await this.runDueSeatRounds();
-    }
-    throw new GameRuleError("Có nhiều yêu cầu đồng thời. Vui lòng thử lại.");
-  }
-  async act(id: string, code: ActionCode, key: string): Promise<ActionResult> {
+    await this.expireEvents();
     await this.runDueSeatRounds();
-    if (code === "APPLY" || code === "WITHDRAW")
-      return this.seatAction(id, code, key);
-    for (let attempt = 0; attempt < 5; attempt++) {
+    const payload = code === "RESOLVE_EVENT" ? (choice ?? null) : null;
+    const replay = async (): Promise<ActionResult | null> => {
       const prior = await this.query(
         "table:action_requests",
         this.db
           .from("action_requests")
-          .select("action_code,result")
+          .select("action_code,payload,result")
           .eq("account_id", id)
           .eq("idempotency_key", key)
           .maybeSingle(),
       );
       if (prior.error) this.failure(prior.error.message);
-      if (prior.data) {
-        if (prior.data.action_code !== code)
-          throw new GameRuleError("Mã yêu cầu đã dùng cho hành động khác.");
-        return prior.data.result as ActionResult;
-      }
-      const state = await this.snapshot(id);
-      let computed: ReturnType<typeof processAction>;
+      if (!prior.data) return null;
+      if (
+        prior.data.action_code !== code ||
+        (code === "RESOLVE_EVENT" &&
+          (prior.data.payload?.eventId !== payload?.eventId ||
+            prior.data.payload?.choiceCode !== payload?.choiceCode ||
+            (payload?.stage !== undefined &&
+              prior.data.payload?.stage !== payload.stage)))
+      )
+        throw new GameRuleError("Mã yêu cầu đã dùng cho lựa chọn khác.");
+      return prior.data.result as ActionResult;
+    };
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const previous = await replay();
+      if (previous) return previous;
+      const before = await this.loadWorld();
+      let after: EventWorld, result: ActionResult;
       try {
-        computed = processAction(
-          state,
-          code,
-          randomUUID(),
-          () => randomBytes(4).readUInt32BE() / 0x100000000,
-        );
-      } catch (error) {
-        // A duplicate may have committed after the first ledger read and spent the last AP.
-        const replay = await this.query(
-          "table:action_requests",
-          this.db
-            .from("action_requests")
-            .select("action_code,result")
-            .eq("account_id", id)
-            .eq("idempotency_key", key)
-            .maybeSingle(),
-        );
-        if (replay.error) this.failure(replay.error.message);
-        if (replay.data) {
-          if (replay.data.action_code !== code)
-            throw new GameRuleError("Mã yêu cầu đã dùng cho hành động khác.");
-          return replay.data.result as ActionResult;
+        if (code === "RESOLVE_EVENT") {
+          if (!choice)
+            throw new GameRuleError("Hãy chọn một phương án sự kiện.");
+          const changed = resolveEvent(before, id, choice, key, {
+            random: secureRandom,
+            id: randomUUID,
+          });
+          after = changed.world;
+          result = changed.result;
+        } else {
+          if (code === "APPLY" || code === "WITHDRAW") {
+            const changed = applyForPromotion(before, id, code, {
+              random: secureRandom,
+              id: randomUUID,
+            });
+            after = eventWorld(changed.world);
+            result = changed.result;
+          } else {
+            after = structuredClone(before);
+            const index = after.states.findIndex((s) => s.account.id === id);
+            if (index < 0) throw new GameRuleError("Tài khoản không tồn tại.");
+            const computed = processAction(
+              after.states[index],
+              code,
+              randomUUID(),
+              secureRandom,
+            );
+            after.states[index] = computed.state;
+            result = {
+              log: computed.log,
+              message: actionMessage(computed.log),
+            };
+          }
+          if (code !== "WITHDRAW")
+            afterValidAction(after, id, result.log, {
+              random: secureRandom,
+              id: randomUUID,
+            });
         }
+      } catch (error) {
+        const raced = await replay();
+        if (raced) return raced;
         throw error;
       }
-      const { state: next, log } = computed;
-      const result: ActionResult = {
-        log,
-        message: actionMessage(log),
-      };
-      const a = ACTIONS[code];
-      const { data, error } = await this.rpc("commit_game_action", {
-        p_account_id: id,
-        p_revision: state.revision,
-        p_key: key,
-        p_code: code,
-        p_proposal: {
-          policy: actionCommitPolicy(state, code),
-          character: next.character,
+      const saved = await this.rpc("commit_event_world", {
+        p_version: before.version,
+        p_proposal: eventProposal(before, after, {
+          accountId: id,
+          key,
+          code,
+          payload,
           result,
-          apCost: a.apCost,
-          silverCost: a.silverCost,
-          hpCost: a.hpCost,
-          dailyCap: a.dailyCap,
-          date: utc7Date(state.serverNow),
-          gameDay: Math.floor(
-            Math.max(
-              0,
-              state.serverNow - Date.parse(state.season.seasonStartTimestamp),
-            ) / MS_PER_GAME_DAY,
-          ),
-        },
+        }),
       });
-      if (!error && data) return data as ActionResult;
-      if (!/STALE_REVISION|RETRY_CLOCK/.test(error?.message ?? ""))
-        this.failure(error?.message ?? "Missing result");
+      if (!saved.error && saved.data) return saved.data as ActionResult;
+      if (!/STALE_REVISION|RETRY_CLOCK/.test(saved.error?.message ?? ""))
+        this.failure(saved.error?.message ?? "Missing event result");
+      await this.expireEvents();
+      await this.runDueSeatRounds();
     }
     throw new GameRuleError("Có nhiều hành động đồng thời. Vui lòng thử lại.");
   }

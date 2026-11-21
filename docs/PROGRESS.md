@@ -1,3 +1,88 @@
+# Chặng 4A — Sự kiện cá nhân, Đại kiếp nạn và Thiên Mệnh
+
+## Đã làm
+
+- Engine thuần + 20 SAMPLE_DRAFT hư cấu, kiểm tra cấu hình khi nạp: 8 NORMAL, 4 RARE, 4 DANGEROUS ngẫu nhiên, 2 tra xét bắt buộc, 2 Đại kiếp nạn hai giai đoạn. Không tên NPC/lịch sử thật.
+- Một roll40/60 mỗi nhân vật/tuần ở hành động hợp lệ đầu tiên, marks/checks trong giao dịch; nhóm65/20/13/2, điều kiện/cooldown/fallback NORMAL, nhân trọng số HARM/SLANDER. Kết quả MISS/FULL/NO_ELIGIBLE/LEGACY_MARK cũng lưu, không reroll/bù offline.
+- PENDING tối đa3, hạn giờ thực, default lazy idempotent. Definition được chụp/khóa khi xuất hiện, stage không đặt lại hạn; retry giữ event/choice/stage/UUID và trả kết quả cũ.
+- commit_event_world tái sử dụng global lock/CAS, ghế/check_promotion_action, resource/cap/merit và log. Các thay đổi, mark/RNG, resolution/claims/ledger cùng transaction; có test hai đề xuất đồng thời. SQL không có UPDATE/DELETE thiếu WHERE; không sửa migration cũ.
+- Đại kiếp nạn chỉ thưởng +1 khi qua cuối, unique account/season/calamity_code. Thất bại/hết hạn = HP0, bệnh nặng5 điều trị, nửa bạc còn lại (floor), fav giảm; không chết. destiny_ledger ghi cả phần thưởng và chi phí reroll mới, không reset số dư/lịch sử cũ.
+- Tra xét từ80 sau hành động/kết cục, 14 ngày game, dùng đúng RUMOR/sàn; cờ pending/deferred chặn thăng phẩm dù suspicion giảm. Khi đầy, giữ cờ hoãn và chờ giải phóng chỗ, không đẩy ra kết cục sớm hoặc vượt3.
+- Sự kiện Hậu cung đúng guard Nội cung2–6/cha150/int100/susp45, gọi hàm thuần/RPC chuyển nhánh 3B, giữ merit/reset tại vị/ghế/điều kiện; từ chối không hậu quả, cooldown30 ngày game.
+- Thẻ đang chờ/countdown/chi phí/khóa, chỉ báo mobile/desktop, màn kết quả và nhật ký20 dòng; Hồ sơ có Thiên Mệnh. Nghi Kỵ chỉ có mô tả, không gửi raw definition hoặc số liệu ẩn cho client.
+- Migration0007 bật RLS ngay trên character_events/destiny_ledger, sensitive functions chỉ service_role. Đọc expiry/review có cảnh báo nhẹ/log đã lọc khi lỗi; ghi không nuốt lỗi. CI guard SQL/RLS và toàn bộ hồi quy giữ nguyên mục đích.
+
+## Chưa làm / giới hạn
+
+MAIN_STORY, COURT_WIDE, PvP, tử vong, giáng phẩm và NPC cụ thể chưa có logic. Trùng sinh/đóng mùa để các chặng sau; Chặng5 cần đóng sự kiện còn chờ của kiếp cũ. Không bổ sung cron hoặc dependency. Kiến trúc global lock và snapshot thế giới vẫn ưu tiên nhất quán, batching/khóa theo phạm vi để chịu tải lớn chưa thuộc 4A.
+
+**chưa kiểm chứng trên Supabase thật**: môi trường chưa có URL/anon/service-role. PGlite thực thi migration/RPC/RLS với stub auth/role; không thay thử extension pg-safeupdate, PostgREST, Auth hoặc tranh chấp nhiều kết nối từ xa. Không chạy migration lên dịch vụ ngoài môi trường.
+
+## Giả định / TODO(spec)
+
+1. Hành động đầu tuần gồm hành động AP, APPLY/EXAM/TREAT và lựa chọn sự kiện thực sự (kể cả0 AP); không gồm WITHDRAW, mở trang, đồng hồ hay kết cục mặc định tự động. Xét điều kiện và trọng số theo trạng thái sau hành động/kết cục.
+2. Dấu tuần cũ chưa có check được ghi LEGACY_MARK, không quay bù. Bảng weekly_event_checks M1 có PK tài khoản/season/week; 0007 giữ hàng cũ với character_id chưa biết/null và thêm PKid + unique nhân vật/season/week, không đoán nhân vật lịch sử. Đây là đổi constraint cần thiết để đúng quy tắc và Chặng5.
+3. Roll nhóm trước, chọn trọng số trong tập hợp hợp lệ; HARM và SLANDER cùng có thì nhân cả hai. Fallback chỉ NORMAL, không thử lần lượt nhóm khác. Đủ3 vẫn ghi roll nhưng không spawn; các sự kiện cùng mã không chồng khi đang PENDING.
+4. Một deadline thực giữ nguyên qua mọi giai đoạn; default của giai đoạn hiện tại chạy một lần, không thu phí/merit hoặc roll. Cooldown đếm chênh lệch ngày lịch game từ xuất hiện; riêng từ chối Hậu cung tính30 ngày lịch game từ từ chối. Tra xét dùng14 ngày từ xuất hiện, có thể xuất hiện lại sau kết cục nếu vẫn cao và đã qua cooldown.
+5. Tra xét ưu tiên trước quay tuần. Đủ3 thì giữ cờ hoãn, chặn thăng phẩm dù suspicion giảm; tạo khi lựa chọn/default giải phóng chỗ. Không bỏ tra xét, không ép default sớm của chuyện khác, không tạo thẻ thứ tư.
+6. Sự kiện không cộng công trạng. Contest mẫu dùng p=clamp(.35+int/2000+hp/400,.20,.95), giảm thêm.30 khi hp<20 và min.05; dùng chỉ số trước chi phí. Tăng dương/clamp/resonance/poverty/sàn dùng statEngine hiện có.
+7. Bệnh nặng/khóa hành động không tự chọn (kể cả miễn phí), vẫn được Điều trị theo M2; expiry tự động vẫn thực hiện. Thất bại Đại kiếp nạn đặt hp0/5 điều trị; bạc còn floor(50% sau phí), fav-30 TEMP. TODO(spec) tử vong ở Chặng5, giáng phẩm/tử hình ở5/6.
+8. Chuyển nhánh phí0, từ chối phí0, guard ACTIVE/không khóa của3B áp lại lúc nhận. Các sự kiện khác giữ snapshot/nội dung lúc xuất hiện; không tự hủy chỉ vì đổi nhánh. Pending tra xét không bị bỏ qua khi chuyển; nhãn chỉ số UI dùng nhánh hiện tại.
+9. Thiên Mệnh chỉ thưởng ở SUCCESS giai đoạn cuối; cùng mã đã nhận vẫn có thể gặp/vượt nhưng không nhận lại. Ledger chỉ ghi giao dịch kể từ0007 (gồm reroll trả điểm), không tạo số dư mở đầu hay bịa lịch sử trước đó; số dư accounts là chuẩn.
+10. Definition chụp khi spawn, bất biến qua reload/thay bản SAMPLE_DRAFT; điều kiện lựa chọn/tài nguyên/stage/guard chuyển nhánh kiểm tra lại từ trạng thái server. RNG mật mã ở Supabase, seed chỉ tiêm trong test. Không có API seed/reroll/tua giờ.
+11. Giữ các giả định 3B/3A/M2 ở phần lịch sử; phiên ghế dùng chỉ số hiện tại với mốc phiên, thời gian tại vị reset ở giờ xử lý thật, không hồi tố. Các RPC cũ giữ chữ ký; ứng dụng mới ghi qua lớp giao dịch sự kiện để không tách mark/RNG khỏi AP.
+
+## Số liệu TEMP
+
+Tại `src/config/balance.ts → EVENT_BALANCE`; nội dung/nhánh/tầng/điều kiện từng mẫu ở events.ts.
+
+| Mục | Giá trị |
+| --- | --- |
+| Trọng số nhóm | NORMAL65 / RARE20 / DANGEROUS13 / GREAT_CALAMITY2 |
+| Deadline thực | NORMAL24h / RARE36h / DANGEROUS12h / GREAT_CALAMITY24h |
+| Max PENDING | 3 |
+| Cooldown mẫu / ĐKN | 7 / 60 ngày game |
+| Cooldown tra xét / từ chối Hậu cung | 14 / 30 ngày game |
+| Thất bại ĐKN | Mất50% bạc còn sau phí (floor số dư), fav-30; HP0/5 điều trị |
+| Phí phương án mẫu | 1 AP; phương án miễn phí0; phương án chi bạc10 |
+| Hiệu ứng mẫu nhỏ/lớn; bạc; HP; suspicion | 5 / 12; 10; -10; ±8 |
+| Giảm suspicion tra xét / dàn xếp | 25 / 15, chịu sàn |
+| Contest | base.35, intDivisor2000, hpDivisor400, clamp.20–.95, fatigue min.05 |
+
+40%/60%, +1 Thiên Mệnh/claim duy nhất và công thức nhân quả M2 là quyết định đã chốt. Không thêm giới hạn gameplay cho Thiên Mệnh/AP ngoài quy tắc cũ; dailyCap kỹ thuật RESOLVE_EVENT là trần integer SQL, giới hạn thực bởi chuyện chờ/roll/cooldown.
+
+## Việc người dùng phải làm
+
+1. Đã ở3B+fix0006: chạy **supabase/migrations/0007_personal_events.sql** trước code mới. Có thể chạy lại, không reset AP, mùa, R, sự kiện/claim/ledger đã ghi. Không chạy migration cũ sau0007 vì sẽ thay wrapper bằng bản cũ.
+2. Dự án mới: schema.sql một lần → 0002 riêng → 0003 → 0004 → 0005 → 0006 → 0007. Không sửa file đã chạy. Giữ đủ ba biến Supabase cũ; không env/cron mới.
+3. Kho20 mẫu đang SAMPLE_DRAFT, cần biên tập và cân bằng trước phát hành nội dung chính thức. Chỉnh EVENT_BALANCE cho mẫu mới; pending snapshot không đổi theo cân bằng mới.
+4. Chạy checklist bên dưới qua Vercel/PostgREST, không chỉ SQL Editor; không đưa service key vào client/chat.
+
+## Checklist Supabase thật
+
+- [ ] Backup dự án test; chạy0007 hai lần; số dư/AP/mùa/ghế/R không reset, PK/unique weekly mới đúng; legacy rows giữ nguyên. Kiểm tra bảng mới RLS và hàm/alias nhạy cảm anon/auth không EXECUTE.
+- [ ] Hai tài khoản, hành động đầu tuần: một mark/check, RNG server, 40/60, không bù tuần offline. Cùng UUID, UUID khác đồng thời trên hai kết nối: không quay thêm, AP/usage/log chính xác. FULL/NO_ELIGIBLE/MISS đều lưu.
+- [ ] Nhánh/tầng/status/stats/cooldown lọc đúng; nhóm trống fallbackNORMAL rồi không có. Đầy3 không tạo thêm; kiểm tra HARM/SLANDER trọng số bằng fixture server.
+- [ ] Lựa chọn AP/bạc, thiếu phí hoặc stage cũ/nhân vật khác bị chặn; cùng UUID sau thay đổi khác trả đúng JSON cũ, không quay xác suất/thu phí lại. Mất phản hồi rồi reload/retry giữ event/choice/stage/UUID.
+- [ ] Hết hạn đúng giờ thực, default giai đoạn hiện tại chỉ một lần, không AP/merit/roll; gọi đọc đồng thời không áp hai lần. Cho lỗi expiry/review có kiểm soát: hồ sơ còn đọc, có cảnh báo và log không PII; thao tác ghi vẫn thất bại không chốt một phần.
+- [ ] Đại kiếp nạn hai chặng: chặng đầu không thưởng, cuối +1 có claim+ledger+account cùng transaction; cùng mã/kiếp mới trong mùa không thưởng lại, mùa mới có thể nhận. Thất bại/default không chết, bạc101→50, fav giảm, cần5 điều trị.
+- [ ] Tra xét tại79/80, hai nhóm nhánh đúng; sau khi hạ suspicion vẫn pending thì APPLY bị chặn. Dàn xếp rep149/150 và sàn; cooldown14 ngày; đầy3 thì hoãn và chặn, giải phóng chỗ tạo đúng một tra xét.
+- [ ] Nội cung2–6, cha150/int100/susp45: nhận sắc phong gọi RPC3B, rank/fav đúng, giữ merit/khác stats, trả ghế/rút đơn/khóa R cũ; từ chối không phí, cooldown30 ngày từ từ chối. Guard live thay đổi trong khi PENDING phải được kiểm tra lại.
+- [ ] Reroll trả1 Thiên Mệnh có ledger-1, retry không thu/ghi lần nữa; số dư cũ trước0007 không reset và không bị backfill giả.
+- [ ] Network/DOM/bundle: chỉ lời mô tả Nghi Kỵ, không raw suspicion/floor/definition/keys hoặc người khác; nhật ký20 dòng, thẻ/deadline/count/Thiên Mệnh hoạt động desktop/mobile.
+
+## Kiểm chứng
+
+- `npm run lint` (gồm SQL guard), `npm run typecheck`, production build: đạt.
+- `npm test`: **115 kiểm tra đạt**, gồm toàn bộ hồi quy cũ, phân phối10.000 mẫu có seed, weighted tags, stage/cooldown/cap/default/claims/ledger/tra xét/chuyển nhánh, RPC/PGlite và privacy/RLS. Fixture hồi quy AP/nhật ký có RNG cố định để phần mới ngẫu nhiên không làm sai mục đích test cũ.
+- **13 Playwright đạt** trên InMemory; thẻ/kết quả/retry lựa chọn có một kịch bản transport mock để kiểm tra UI/UUID mà không mở endpoint seed/tua giờ sản xuất. Backend giải quyết/chi phí/hiệu ứng được kiểm tra thật bằng engine/Memory/PGlite; không coi mock là Supabase thật.
+- PGlite chạy0007 hai lần, sau giao dịch thưởng chạy lại vẫn giữ claim/điểm; kiểm tra actual RPC chuyển nhánh bằng spy trả lỗi và rollback, rồi khôi phục/gọi thành công. CI dùng cùng lint/test/build.
+- **chưa kiểm chứng trên Supabase thật**; không chạy migration hay triển khai DB ngoài môi trường.
+
+---
+
+# Lịch sử các chặng trước
+
 # Sửa lỗi vận hành Chặng 3B — pg-safeupdate (0006)
 
 ## Nguyên nhân và rà soát

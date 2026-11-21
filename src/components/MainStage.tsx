@@ -21,6 +21,9 @@ import { BRANCH_INFO, RANKS, statLabel } from "@/lib/gameConfig";
 import { logout } from "@/app/login/actions";
 import type { GameView, LogPage } from "@/types/runtime";
 import ReadWarnings from "./ReadWarnings";
+import EventCards from "./EventCards";
+import type { ResolveEventInput } from "@/types/events";
+import type { PublicActionLog } from "@/types/runtime";
 import SeatBoard from "./SeatBoard";
 import PromotionProgress from "./PromotionProgress";
 import PalaceIllustration from "./PalaceIllustration";
@@ -49,10 +52,13 @@ export default function MainStage({
     [message, setMessage] = useState(""),
     [sending, setSending] = useState(false),
     [loading, setLoading] = useState(false);
-  const [retry, setRetry] = useState<{ code: ActionCode; key: string } | null>(
-    null,
-  );
-  const requestRef = useRef<{ code: ActionCode; key: string } | null>(null),
+  const [eventResult, setEventResult] = useState<PublicActionLog | null>(null);
+  const [retry, setRetry] = useState<
+    ({ code: ActionCode; key: string } & Partial<ResolveEventInput>) | null
+  >(null);
+  const requestRef = useRef<
+      ({ code: ActionCode; key: string } & Partial<ResolveEventInput>) | null
+    >(null),
     busy = useRef(false),
     reading = useRef<Promise<void> | null>(null);
   const [anchor, setAnchor] = useState<{
@@ -120,9 +126,28 @@ export default function MainStage({
     try {
       const stored = sessionStorage.getItem(storageKey);
       if (stored) {
-        const value = JSON.parse(stored) as { code: unknown; key: unknown };
+        const value = JSON.parse(stored) as {
+          code: unknown;
+          key: unknown;
+          eventId?: unknown;
+          choiceCode?: unknown;
+          stage?: unknown;
+        };
         if (isActionCode(value.code) && typeof value.key === "string") {
-          const pending = { code: value.code, key: value.key };
+          const pending = {
+            code: value.code,
+            key: value.key,
+            ...(typeof value.eventId === "string" &&
+            typeof value.choiceCode === "string"
+              ? {
+                  eventId: value.eventId,
+                  choiceCode: value.choiceCode,
+                  ...(typeof value.stage === "number"
+                    ? { stage: value.stage }
+                    : {}),
+                }
+              : {}),
+          };
           requestRef.current = pending;
           setRetry(pending);
         }
@@ -164,17 +189,34 @@ export default function MainStage({
       state.serverNow - Date.parse(state.season.seasonStartTimestamp),
     ) / MS_PER_GAME_DAY,
   );
+  const eventDeadlineDue = (state.pendingEvents ?? []).some(
+    (e) =>
+      Date.parse(e.expiresAt) > state.serverNow &&
+      Date.parse(e.expiresAt) <= now,
+  );
   useEffect(() => {
     if (
+      eventDeadlineDue ||
       today !== utc7Date(state.serverNow) ||
       promotionDay !== sampledPromotionDay
     )
       void refresh();
-  }, [today, state.serverNow, promotionDay, sampledPromotionDay, refresh]);
+  }, [
+    today,
+    state.serverNow,
+    promotionDay,
+    sampledPromotionDay,
+    eventDeadlineDue,
+    refresh,
+  ]);
   const c = state.character!;
-  async function act(code: ActionCode) {
+  async function act(code: ActionCode, choice?: ResolveEventInput) {
     if (busy.current) return;
-    const request = requestRef.current ?? { code, key: crypto.randomUUID() };
+    const request = requestRef.current ?? {
+      code,
+      key: crypto.randomUUID(),
+      ...choice,
+    };
     if (request.code !== code) return;
     requestRef.current = request;
     setRetry(request);
@@ -183,6 +225,7 @@ export default function MainStage({
     setSending(true);
     setError("");
     setMessage("");
+    setEventResult(null);
     try {
       const response = await fetch("/api/actions", {
         method: "POST",
@@ -193,6 +236,7 @@ export default function MainStage({
         message?: string;
         error?: string;
         retryable?: boolean;
+        log?: PublicActionLog;
       };
       if (!response.ok) {
         if (!result.retryable) {
@@ -205,13 +249,18 @@ export default function MainStage({
       requestRef.current = null;
       setRetry(null);
       sessionStorage.removeItem(storageKey);
-      setMessage(result.message ?? "Hành động đã hoàn tất.");
+      setMessage(
+        result.log?.event ? "" : (result.message ?? "Hành động đã hoàn tất."),
+      );
+      if (result.log?.event) setEventResult(result.log);
       await refresh();
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Mất kết nối. Hãy thử lại cùng yêu cầu.",
+        err instanceof TypeError || err instanceof SyntaxError
+          ? "Mất kết nối. Hãy thử lại cùng yêu cầu."
+          : err instanceof Error
+            ? err.message
+            : "Mất kết nối. Hãy thử lại cùng yêu cầu.",
       );
     } finally {
       busy.current = false;
@@ -230,6 +279,9 @@ export default function MainStage({
       <h3>{BRANCH_INFO[c.branch].name}</h3>
       <p>
         {RANKS[c.rankId]?.name ?? "Đã nhập triều"} · {c.age} tuổi
+      </p>
+      <p className="destiny-points" data-testid="destiny-points">
+        Điểm Thiên Mệnh <strong>{state.account.destinyPoints}</strong>
       </p>
       <div className="profile-stats">
         {statKeys.map((key) => (
@@ -290,10 +342,12 @@ export default function MainStage({
             <li key={log.id}>
               <span className="journal-dot" />
               <strong>
-                {log.promotion
-                  ? `${log.promotion.conversion ? "Chuyển nhánh" : "Thăng phẩm"} · ${RANKS[log.promotion.toRankId]?.name}`
-                  : (ACTIONS[log.actionCode].branchNames?.[c.branch] ??
-                    ACTIONS[log.actionCode].name)}
+                {log.event
+                  ? log.event.title
+                  : log.promotion
+                    ? `${log.promotion.conversion ? "Chuyển nhánh" : "Thăng phẩm"} · ${RANKS[log.promotion.toRankId]?.name}`
+                    : (ACTIONS[log.actionCode].branchNames?.[c.branch] ??
+                      ACTIONS[log.actionCode].name)}
               </strong>
               <small>
                 Năm {START_REIGN_YEAR + log.worldTime.currentGameYear - 1},
@@ -301,6 +355,15 @@ export default function MainStage({
                 {log.worldTime.currentGameDay} · −{log.apSpent} AP
                 {log.meritGained ? ` · +${log.meritGained} công trạng` : ""}
               </small>
+              {log.event && (
+                <p>
+                  {log.event.expired ? "Đã hết hạn · " : ""}
+                  {log.event.text} {log.event.suspicionNarrative}
+                  {log.event.destinyAwarded
+                    ? ` +${log.event.destinyAwarded} Điểm Thiên Mệnh.`
+                    : ""}
+                </p>
+              )}
               {log.exam && (
                 <p>
                   {log.exam.success
@@ -392,6 +455,33 @@ export default function MainStage({
             {message}
           </div>
         )}
+        {eventResult?.event && (
+          <div
+            className="stage-paper event-result"
+            role="status"
+            data-testid="event-result"
+          >
+            <h2>{eventResult.event.title}</h2>
+            <p>{eventResult.event.text}</p>
+            <p>
+              {statKeys
+                .flatMap((key) => {
+                  const delta =
+                    eventResult.after[key] - eventResult.before[key];
+                  return delta
+                    ? [
+                        `${statLabel(key, c.branch)} ${delta > 0 ? "+" : ""}${delta}`,
+                      ]
+                    : [];
+                })
+                .join(" · ") || "Chỉ số công khai không đổi."}
+            </p>
+            <p>{eventResult.event.suspicionNarrative}</p>
+            {eventResult.event.destinyAwarded > 0 && (
+              <p>+{eventResult.event.destinyAwarded} Điểm Thiên Mệnh</p>
+            )}
+          </div>
+        )}
         {error && (
           <div className="error-message" role="alert">
             {error}
@@ -426,13 +516,24 @@ export default function MainStage({
               <h2>Mỗi việc nhỏ, một bước xa</h2>
               <p>Trau dồi căn cốt, giữ vững lòng mình giữa chốn kinh kỳ.</p>
             </div>
+            <EventCards
+              events={state.pendingEvents ?? []}
+              serverNow={now}
+              pending={sending || !!retry}
+              onChoose={(choice) => void act("RESOLVE_EVENT", choice)}
+            />
             <div className="section-caption">
               <BookOpen size={16} />
               <h2>Việc trong ngày</h2>
             </div>
             <div className="action-grid">
               {Object.values(ACTIONS)
-                .filter((a) => !["EXAM", "APPLY", "WITHDRAW"].includes(a.code))
+                .filter(
+                  (a) =>
+                    !["EXAM", "APPLY", "WITHDRAW", "RESOLVE_EVENT"].includes(
+                      a.code,
+                    ),
+                )
                 .map((a) => {
                   const reason = state.actionLocks[a.code];
                   return (
@@ -507,7 +608,12 @@ export default function MainStage({
             onClick={() => setTab(t.key)}
           >
             <t.icon size={20} />
-            <span>{t.name}</span>
+            <span>
+              {t.name}
+              {t.key === "stage" && (state.pendingEvents?.length ?? 0) > 0
+                ? ` (${state.pendingEvents.length})`
+                : ""}
+            </span>
           </button>
         ))}
       </nav>

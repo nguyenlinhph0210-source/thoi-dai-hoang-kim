@@ -332,3 +332,136 @@ test("read warning is mild, keeps profile/AP visible and clears after a healthy 
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByTestId("read-warning")).toHaveCount(0);
 });
+
+test("event cards preserve choice UUID on retry, display outcome and hide numerical suspicion (mock transport)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await register(page);
+  await createLife(page);
+  const initial = await (await page.request.get("/api/game")).json();
+  const eventId = randomUUID();
+  let resolved = false;
+  const pending = {
+    id: eventId,
+    code: "UI_SAMPLE",
+    title: "Lời nhờ bên hiên",
+    body: "Một người giữ sổ nhờ bạn giúp hoàn tất công việc.",
+    group: "NORMAL",
+    mandatory: false,
+    stage: 1,
+    stageCount: 1,
+    expiresAt: new Date(initial.state.serverNow + 3600000).toISOString(),
+    sample: true,
+    choices: [
+      {
+        code: "HELP",
+        label: "Dành thời gian giúp đỡ",
+        apCost: 1,
+        silverCost: 0,
+        lockReason: null,
+      },
+    ],
+  };
+  await page.route("**/api/game?*", async (route) => {
+    const response = await route.fetch(),
+      payload = await response.json();
+    payload.state.pendingEvents = resolved ? [] : [pending];
+    payload.state.account.actionPoints = resolved ? 9 : 10;
+    await route.fulfill({ response, json: payload });
+  });
+  const attempts: {
+    code: string;
+    key: string;
+    eventId: string;
+    choiceCode: string;
+  }[] = [];
+  await page.route("**/api/actions", async (route) => {
+    const request = route.request().postDataJSON();
+    attempts.push(request);
+    if (attempts.length === 1) {
+      await route.abort("failed");
+      return;
+    }
+    resolved = true;
+    const stats = {
+      int: initial.state.character.int,
+      rep: initial.state.character.rep,
+      fav: initial.state.character.fav,
+      cha: initial.state.character.cha,
+      hp: initial.state.character.hp,
+      characterSilver: initial.state.character.characterSilver,
+    };
+    await route.fulfill({
+      json: {
+        message: "Việc nhỏ được hoàn tất.",
+        log: {
+          id: randomUUID(),
+          characterId: initial.state.character.id,
+          actionCode: "RESOLVE_EVENT",
+          createdAt: new Date(initial.state.serverNow).toISOString(),
+          before: stats,
+          after: { ...stats, int: stats.int + 5 },
+          apSpent: 1,
+          apAfter: 9,
+          modifiers: {
+            ambushChanceBonus: 0,
+            slanderChanceBonus: 0,
+            failChanceBonus: 0,
+            fatigueMultiplier: 1,
+            resonanceMultiplier: 1,
+          },
+          worldTime: {
+            currentGameYear: 1,
+            currentGameMonth: 1,
+            currentGameDay: 1,
+            currentGameWeek: 1,
+            dayOfYear: 0,
+            msUntilNextGameDay: 300000,
+          },
+          event: {
+            eventId,
+            choiceCode: "HELP",
+            title: pending.title,
+            text: "Việc nhỏ được hoàn tất.",
+            stage: 0,
+            completed: true,
+            success: true,
+            destinyAwarded: 0,
+            suspicionNarrative: "Những lời nghi ngại đã lắng bớt.",
+            expired: false,
+          },
+        },
+      },
+    });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByTestId("pending-event")).toBeVisible();
+  await page.screenshot({
+    path: "/tmp/dai-noi-ky-4a-event-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: /Dành thời gian giúp đỡ/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Thử lại yêu cầu cũ", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Mất kết nối" }),
+  ).toContainText("Mất kết nối. Hãy thử lại cùng yêu cầu.");
+  await page
+    .getByRole("button", { name: "Thử lại yêu cầu cũ", exact: true })
+    .click();
+  await expect(page.getByTestId("event-result")).toBeVisible();
+  await expect(page.getByTestId("ap-balance")).toHaveText("9/15 AP");
+  expect(attempts).toHaveLength(2);
+  expect(attempts[0]).toEqual(attempts[1]);
+  expect(attempts[0].eventId).toBe(eventId);
+  expect(attempts[0].choiceCode).toBe("HELP");
+  await expect(page.getByTestId("pending-event")).toHaveCount(0);
+  await expect(page.getByTestId("event-result")).toContainText(
+    "Những lời nghi ngại đã lắng bớt.",
+  );
+  expect(await page.getByTestId("event-result").innerText()).not.toMatch(
+    /Nghi Kỵ\s*[+-]?\d/,
+  );
+});
