@@ -1,16 +1,17 @@
-# ĐẠI NỘI KÝ — Chặng 4A · Sự kiện cá nhân và Thiên Mệnh
+# ĐẠI NỘI KÝ — G1 · Cung viện 3D (prototype)
 
 Next.js App Router, TypeScript strict, Tailwind, Lucide và Supabase. Quy tắc: [AGENTS.md](AGENTS.md). Tiến độ, giả định, TEMP và checklist: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Chạy và kiểm tra
 
-Node 24.22.1, npm 11. Chặng 3B không thêm dependency.
+Node 24.22.1, npm 11. G1 thêm three0.170.0, Fiber8.18.0, Drei9.122.0 (ghim chính xác cho React18).
 
 ```sh
 npm ci --cache /workspace/.npm-cache
 npm run dev
 npm run lint
 npm run typecheck
+npm run check:models
 npm test
 npm run build
 npm run test:e2e
@@ -19,6 +20,29 @@ npm run test:e2e
 Thiếu toàn bộ cấu hình Supabase thì dùng `InMemoryGameRepository`: mỗi tài khoản có email/mật khẩu/phiên riêng, không có người dùng demo chung. Dữ liệu mất khi restart; chỉ dùng một process cho local/test. Không dùng InMemory cho triển khai nhiều máy chủ. Một phần cấu hình Supabase bị thiếu sẽ báo lỗi, không âm thầm chuyển sang local. Local production HTTP cần `COOKIE_SECURE=false`; HTTPS mặc định Secure.
 
 Playwright chạy production build tại cổng 3100 với InMemory. Dùng `/usr/bin/chromium`, hoặc cài `npx playwright install chromium`/đặt `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Không chạy dev server đồng thời với build trong cùng `.next`.
+
+## Cung viện 3D (G1)
+
+Vào Sân khấu bằng nhân vật **Hậu cung** để xem cảnh mẫu. Kéo xoay, véo/cuộn đổi khoảng cách;
+chạm Bàn trà/Đèn lồng/Sập gỗ để hiện chú thích HTML, không tốn AP hoặc tác động game.
+Mở **Cài đặt đồ họa** ngay dưới cảnh để chọn Tự động, Thấp, Trung bình, Cao hoặc Chế độ2D.
+Lựa chọn lưu localStorage trên thiết bị. Thiết bị yếu/tiết kiệm dữ liệu tự chọn2D; thiếu WebGL2 hoặc lỗi
+renderer cũng về2D. Mọi nút, sự kiện và luật game vẫn hoạt động, không migration/env mới cho G1.
+
+Renderer dynamic import, SSR=false; không tải chunk three ở login hay lúc chọn2D. DPR1/1.5/1.5,
+chỉ Cao có shadow512px. Camera dao động ngắn sau mở/tương tác, tắt với reduced-motion; cảnh đứng yên
+dùng demand và cảnh ẩn dùng never để tiết kiệm pin. Đo FPS khởi động để hạ chất lượng nếu cần.
+
+Mặc định không có GLB: toàn bộ hình khối tự tạo. Model tùy chọn đăng ký ở `src/3d/assets.ts`;
+`predev`/`prebuild` kiểm tra và tạo `public/models/manifest.json` (không commit). Chạy
+`npm run check:models` sau khi thêm file; build bị chặn nếu quá byte/thiếu credits. Quy ước Blender,
+ngân sách và giấy phép tại [docs/3D_ASSETS.md](docs/3D_ASSETS.md), nguồn ở
+[public/models/CREDITS.md](public/models/CREDITS.md). Loader có Draco/Meshopt/KTX2; decoder ngoài cần tự host,
+không dùng CDN mặc định. Chưa phân phối hay kiểm chứng fixture model nén thật trong G1.
+
+`npm run dev`, thêm `?debug3d=1` để xem FPS/tam giác/draw calls; query không mở panel trên production.
+`npm run measure:3d` sau build đo gzip của chunk tải trì hoãn. Số đo và giới hạn kiểm thử trong PROGRESS;
+SwiftShader headless không phải hiệu năng điện thoại thật.
 
 ## Supabase và thứ tự migration
 

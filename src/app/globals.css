@@ -175,3 +175,21 @@ h1 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 3.4v
 .event-result h2 { font-size:1.2rem; color:#7b3027; }
 .event-result p { font-size:.85rem; margin-top:.5rem; }
 .destiny-points { display:flex; flex-wrap:wrap; gap:.4rem; justify-content:space-between; font-size:.8rem; padding:.75rem 0; color:#7b592c; }
+
+/* G1: visual background only; all text, controls and game actions stay HTML. */
+.palace-stage{margin:-24px -24px 24px;border-bottom:1px solid var(--line);position:relative;background:#eee1c8}
+.palace-viewport{height:420px;position:relative;overflow:hidden;isolation:isolate;background:#ded0b5}
+.palace-flat{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 30%,#f9efd8,#d4bea0)}
+.palace-flat .palace-illustration{width:94%;color:#95723d;transform:translateY(-18px)}
+.palace-canvas{position:absolute!important;inset:0;touch-action:none}
+.palace-title{position:absolute;z-index:6;bottom:0;left:0;right:0;padding:40px 14px 15px;text-align:center;pointer-events:none;background:linear-gradient(transparent,#f5ead4e8 45%,#f5ead4)}
+.palace-title .eyebrow{font-size:7px}.palace-title h2{font:normal 25px Georgia,serif;color:#713c2d;margin:8px 0}.palace-title p{font-size:10px;line-height:1.7;color:#6e573c}
+.palace-loading{position:absolute;inset:0;z-index:7;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:15px;background:#eadcc5;color:#795932;font-size:12px}.palace-loading progress{width:55%;height:5px;accent-color:#8d4031}
+.palace-toolbar{position:relative;z-index:8;padding:10px 14px;background:#f8efde;font-size:11px;color:#765736}.palace-toolbar summary{display:flex;align-items:center;gap:6px;cursor:pointer;min-height:28px}.palace-toolbar label{display:grid;gap:8px;margin:10px 0}.palace-toolbar select{width:100%;border:1px solid #b69a6a;background:#fff9ed;padding:9px;color:#68452d}.palace-toolbar small{font-size:10px;line-height:1.8;display:block}
+.palace-caption{padding:10px 14px;font-size:11px;line-height:1.8;color:#78583a;background:#f8efde;border-top:1px solid #cbb28560}
+.palace-world-hotspot{white-space:nowrap;font-size:10px;padding:7px 9px;border:1px solid #d8bd7c;background:#44261ee8;color:#f4ddb0;border-radius:2px;box-shadow:0 2px 10px #25150c40;min-height:32px;cursor:pointer}
+.palace-world-hotspot:hover,.palace-world-hotspot:focus-visible{background:#833e2f;outline:2px solid #e6c578}
+.palace-debug{position:absolute;top:8px;left:8px;z-index:9;background:#171a18db;color:#e3f2c9;font:10px/1.6 monospace;padding:6px;max-width:90%;pointer-events:none}
+@media(min-width:1024px) and (max-width:1200px){.palace-stage{margin:-18px -18px 22px}}
+@media(max-width:1023px){.palace-stage{margin:-20px -20px 22px}.palace-viewport{height:45svh;min-height:300px;max-height:500px}.palace-title h2{font-size:23px}}
+@media(max-width:359px){.palace-stage{margin:-16px -16px 20px}}

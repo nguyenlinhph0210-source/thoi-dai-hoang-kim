@@ -7,7 +7,13 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: "*.spec.ts",
   workers: 1,
-  use: { baseURL: "http://127.0.0.1:3100", launchOptions: { executablePath } },
+  use: {
+    baseURL: "http://127.0.0.1:3100",
+    launchOptions: {
+      executablePath,
+      args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+    },
+  },
   webServer: {
     command: "npm run start -- --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",

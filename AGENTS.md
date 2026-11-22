@@ -37,6 +37,16 @@
 - Giới hạn: đây là bộ kiểm tra từ vựng, không phải parser PostgreSQL hay kiểm chứng điều kiện nghiệp vụ. Bỏ comment/chuỗi dữ liệu nhưng quét thân AS/DO dollar-quoted. SQL dựng động bằng EXECUTE/ghép chuỗi không được phân tích đầy đủ; phải rà soát riêng. Fixture SQL trong tests không phải đường SQL sản xuất. Bộ kiểm tra bỏ WHERE của truy vấn con khi xét UPDATE/DELETE ngoài nó.
 - Log DB chỉ tên RPC/bảng cố định, code/message/hint/details đã lọc; không log error object, đối số, URL, header, khóa, token, ID/email, chỉ số hoặc bản ghi người chơi. Nội dung chẩn đoán chưa được duyệt phải bị che.
 
+### 1.4. Đồ họa 3D (G1 — prototype)
+
+- 3D chỉ là nền trang trí. Chữ, nút, hotspot, sự kiện và kết quả luôn là HTML 2D; không đổi luật game, đồng hồ/AP, RNG, API nghiệp vụ hoặc database để phục vụ đồ họa.
+- Chỉ nhánh Hậu cung có cảnh mẫu “Cung viện của bạn”. Các nhánh khác giữ nền cũ. Có chế độ 2D đầy đủ tính năng, tự dùng khi thiếu WebGL2, máy yếu/tiết kiệm dữ liệu, lỗi renderer/context hoặc người chơi chọn.
+- Three/Fiber/Drei ghim phiên bản tương thích React18, chỉ nằm sau dynamic import client-only, SSR=false; không tải chunk renderer ở login hay lúc chọn2D. Error boundary và context-loss chuyển2D, log hằng an toàn, không exception object/PII.
+- Ưu tiên điện thoại tầm trung: Low DPR1, Medium/High tối đa1.5; chỉ High có bóng mềm512px. Hemisphere + một directional, đèn emissive không thêm light. Ngân sách toàn cảnh dưới100.000 tam giác, giới hạn model/texture tại `src/3d/assets.ts`.
+- Demand khi đứng yên, never khi ẩn tab/ngoài viewport/tab mobile khác. Dao động camera chỉ ngắn sau mở/tương tác và tắt với prefers-reduced-motion. Đo hai cửa sổ FPS liên tục để giảm chất lượng; thời gian idle không được tính thành khung chậm. Cài đặt lưu local thiết bị, không dùng tài khoản/DB.
+- Tài nguyên tự tạo hoặc CC0 có nguồn/giấy phép trong `public/models/CREDITS.md`; không CDN mặc định. GLB tùy chọn, thiếu thì dùng procedural. Draco/Meshopt/KTX2 có loader, decoder cần tự host và giữ license phần mềm. Đọc `docs/3D_ASSETS.md`, chạy check:models trước build.
+- Mobile vùng cảnh khoảng45svh, desktop nền cột giữa; tải có progress tiếng Việt trong khung cố định. `?debug3d=1` chỉ có panel ở development; báo phép đo thật/chunk gzip và giới hạn thiết bị thử trong PR, không coi SwiftShader là điện thoại thật.
+
 ---
 
 ## 2. QUY TẮC THẾ GIỚI, THỜI GIAN & LƯỢT HÀNH ĐỘNG (WORLD, TIME & AP MECHANICS)

@@ -27,6 +27,7 @@ import type { PublicActionLog } from "@/types/runtime";
 import SeatBoard from "./SeatBoard";
 import PromotionProgress from "./PromotionProgress";
 import PalaceIllustration from "./PalaceIllustration";
+import PalaceStage from "./PalaceStage";
 const tabs = [
   { key: "profile", name: "Hồ sơ", icon: UserRound },
   { key: "stage", name: "Sân khấu", icon: Crown },
@@ -510,12 +511,16 @@ export default function MainStage({
           <section
             className={`stage-paper stage-center mobile-pane ${tab === "stage" ? "pane-active" : ""}`}
           >
-            <div className="stage-scene">
-              <PalaceIllustration />
-              <span className="eyebrow">CỬA CUNG ĐÃ MỞ</span>
-              <h2>Mỗi việc nhỏ, một bước xa</h2>
-              <p>Trau dồi căn cốt, giữ vững lòng mình giữa chốn kinh kỳ.</p>
-            </div>
+            {c.branch === "HAREM" ? (
+              <PalaceStage active={tab === "stage"} />
+            ) : (
+              <div className="stage-scene">
+                <PalaceIllustration />
+                <span className="eyebrow">CỬA CUNG ĐÃ MỞ</span>
+                <h2>Mỗi việc nhỏ, một bước xa</h2>
+                <p>Trau dồi căn cốt, giữ vững lòng mình giữa chốn kinh kỳ.</p>
+              </div>
+            )}
             <EventCards
               events={state.pendingEvents ?? []}
               serverNow={now}
