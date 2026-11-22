@@ -1,3 +1,63 @@
+# G1 — Nền tảng đồ họa 3D (prototype)
+
+## Đã làm
+
+- Cảnh Hậu cung “Cung viện của bạn”: sàn gỗ instancing, cột/tường son, xà mái, bình phong, sập, bàn trà, bình hoa, đèn emissive, cửa/sân/cây cách điệu. Component/slot tách để thay GLB; tất cả hình khối tự tạo, nguồn/CC0 trong CREDITS. Không đổi code nghiệp vụ, API, schema hoặc migration.
+- Dynamic client-only/SSR=false, renderer thành chunk riêng; không tải tại login hoặc chế độ2D. HTML giữ chữ/nút/sự kiện, hotspot chỉ phát chú thích 2D, không AP hay thay chỉ số. Cảnh mobile45svh, desktop nằm nền cột giữa, tải có progress trong khung cố định.
+- Auto/Thấp/Trung bình/Cao/2D lưu localStorage. Kiểm WebGL2, hints DPR/CPU/memory/saveData, benchmark FPS; thiếu hỗ trợ/lỗi renderer/context/máy yếu về2D. Error boundary log mã hằng, không ID/email/đặc tính thiết bị/exception object.
+- DPR1/1.5/1.5; hemisphere + một directional; chỉ Cao có PCF soft shadow512px. Giới hạn xoay/zoom, tắt drift với reduced-motion. Demand khi đứng yên, never khi ẩn tab/ngoài viewport/tab mobile khác; giảm chất lượng sau hai cửa sổ FPS thấp liên tục.
+- Registry, loader GLB có Meshopt/Draco/KTX2, decoder tự host. Manifest chỉ chứa file có thật do predev/prebuild tạo; không dò404/CDN. Kiểm byte/credits/file lạ/decoder và ngân sách tam giác/texture khi nạp; model thiếu dùng procedural, model lỗi về2D.
+- `check:models` được thêm vào CI và prebuild. Unit test chọn chất lượng/lưu cấu hình/giảm FPS/model gate; Playwright kiểm chunk/login/2D, thiếu WebGL, lỗi renderer, cảnh/gesture/hotspot/đổi2D, GLB tự tạo qua loader thật.
+
+## Chưa làm / giới hạn
+
+G2 (nhân vật/trang phục), G3 (nhiều cảnh), luật game/database/kịch bản không thuộc G1. Chưa thử trên điện thoại thật, chưa đo nhiệt/pin/bộ nhớ GPU thực tế, chưa có GLB nghệ thuật chính thức. Loader nén đã nối API nhưng **chưa kiểm chứng với fixture Draco/Meshopt/KTX2 nén thật**. Có fixture GLB2.0 không nén tự tạo trong test, không phân phối model bên thứ ba. Chưa coi số FPS SwiftShader là hiệu năng điện thoại.
+
+## Phiên bản và lý do
+
+Ghim chính xác `three=0.170.0`, `@react-three/fiber=8.18.0`, `@react-three/drei=9.122.0`, `@types/three=0.170.0`. Fiber8 khai báo React>=18<19; Drei9 yêu cầu React18/Fiber8/three>=0.137, khớp React18.3.1 và Next14.2.35 đang dùng. Không nâng lên Fiber9/Drei10 vốn dành cho React19. Types cùng phiên bản three để tránh lệch API; package-lock cố định cây phụ thuộc.
+
+## Giả định
+
+1. Main khi bắt đầu đã có4A (merge5e4bf3e), giữ nguyên toàn bộ. G1 chỉ gắn view cho branch HAREM, không tạo route demo/seed hay giả người chơi.
+2. Cài đặt là theo trình duyệt, không theo tài khoản. Auto máy yếu/saveData về2D; chọn3D thủ công được thử mức mong muốn nhưng vẫn chịu bảo vệ lỗi/FPS. Hạ chất lượng trong phiên không ghi đè sở thích; có thể chọn lại qua Cài đặt. LocalStorage bị chặn thì vẫn dùng trong phiên.
+3. Dao động “nhàn rỗi” chỉ6s sau mở/3s sau tương tác để đồng thời giữ demand khi đứng yên; reduced-motion tắt hoàn toàn dao động. Kéo/zoom vẫn dùng được. Khởi động benchmark vẫn vẽ khoảng4.5s khi visible.
+4. Auto mặc định thận trọng khi thiếu hints: Low. Low DPR1; mức khác min(DPR máy,1.5), nên thiết bị DPR1 không bị nâng lên1.5. Chỉ đo khung liên tục; idle không phải FPS0. Hạ sau hai cửa sổ2s dưới27FPS (Low dưới15); Low tụt tiếp về2D.
+5. Manifest sinh lúc dev/build, không quét filesystem hay ghi server khi chơi. Thêm GLB phải build lại; assets không có thì không tải gì. Chỉ GLB nhúng tài nguyên, decoder không dùng CDN. Model lỗi/qua ngân sách làm cả cảnh về2D để không ảnh hưởng game.
+6. Kiểm byte/credits tự động không chứng minh giấy phép hoặc chất lượng nghệ thuật. Chủ dự án duyệt mesh/texture/license theo checklist trước khi thêm. Phần procedural tự tạo CC0; không thay giấy phép toàn bộ game.
+7. Debug chỉ development; benchmark/chunk gzip là phép đo cục bộ, không phải tải mạng hay pin thực tế. Playwright dùng SwiftShader, fixture GLB tự tạo/transport mock chỉ nằm trong test, không endpoint điều khiển đồ họa/game từ test trong production.
+
+## Số đo thực tế trong môi trường
+
+Chromium headless Linux, ANGLE SwiftShader (GPU phần mềm), viewport390×844, DPR thiết bị1, reduced-motion bật;
+dev build để đọc panel debug, mẫu cửa sổ2s sau khởi động. Không throttling CPU/mạng; số liệu là một lượt đo, không benchmark thống kê.
+
+| Chất lượng | FPS cửa sổ đo | Tam giác hình học | Tam giác vẽ/frame gồm shadow | Draw calls/frame |
+| --- | ---: | ---: | ---: | ---: |
+| Thấp | 59.0 | 1.508 | 1.508 | 82 |
+| Trung bình | 57.5 | 1.508 | 1.508 | 82 |
+| Cao | 44.3 | 1.508 | 2.580 | 148 |
+
+Toàn cảnh1.508 tam giác <100.000; ván sàn16 chiếc dùng2 instanced draw calls. Sau khi nghỉ, hai mẫu debug cách nhau2.2s giữ nguyên frame counter173, không có loop vẽ liên tục. Các con số FPS chỉ áp dụng lúc đang vẽ; không diễn giải số cũ ở panel là FPS idle.
+
+Ở một lượt kiểm tra resize sang desktop1440×1000 trong khi build/Playwright khác đang chạy cùng máy,
+cửa sổ debug có lúc xuống7.9FPS. Số đo phụ thuộc tải/resolution và không cam kết FPS cố định; cơ chế giảm mức/2D vẫn cần thiết.
+
+Chunk production: đo bằng `npm run measure:3d` sau build; tổng các chunk async riêng, gzip từng file, không tính shared React/Next hoặc GLB/decoder chưa phân phối. Build cuối: **3 chunk, 273.1 KiB gzip, 998.5 KiB raw**.
+
+## Việc người dùng phải làm
+
+1. `npm ci`, build/triển khai code như thường; **không migration, biến môi trường hoặc Supabase setup mới** cho G1. Yêu cầu backend từ các chặng đã triển khai vẫn giữ nguyên.
+2. Vào nhân vật Hậu cung → Sân khấu; thử ba chất lượng và2D, reload lưu sở thích. Không cần tải model để chơi.
+3. Nếu bổ sung GLB: đọc `docs/3D_ASSETS.md`, đặt file, registry, credits, decoder có phép nếu cần; chạy `npm run check:models` rồi build. Không commit manifest sinh tự động.
+4. Trước phát hành: thử Android/iOS tầm trung thật, DPR cao, pinch, WebGL context loss, đổi tab/app, reduced-motion, pin/nhiệt và mạng chậm. Soi DevTools network: login/2D không có chunk3D, model/decoder không gọi CDN.
+
+## Kiểm chứng G1
+
+`npm run lint`, `npm run typecheck`, `npm run check:models`, production build: đạt. `npm test`: **119 kiểm tra đạt**, không bỏ test cũ. Toàn bộ **18 Playwright đạt** với InMemory/SwiftShader (13 luồng cũ +5 đồ họa); sau chỉnh projection khi resize, chạy lại riêng5 test đồ họa; sau hoàn thiện cleanup decoder khi unmount/Suspense, kiểm lại GLB trên build cuối. Không sửa kỳ vọng nghiệp vụ, không chạy migration hoặc thay cấu hình Supabase.
+
+---
+
 # Chặng 4A — Sự kiện cá nhân, Đại kiếp nạn và Thiên Mệnh
 
 ## Đã làm
