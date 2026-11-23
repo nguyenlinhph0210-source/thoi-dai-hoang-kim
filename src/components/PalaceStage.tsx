@@ -2,7 +2,6 @@
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Settings2 } from "lucide-react";
-import PalaceIllustration from "./PalaceIllustration";
 import SceneErrorBoundary from "./SceneErrorBoundary";
 import {
   chooseDeviceQuality,
@@ -16,7 +15,8 @@ import {
 } from "@/3d/quality";
 
 // No three/fiber/drei import anywhere above this conditional, client-only boundary.
-import type { CosmeticAppearance } from "@/types/cosmetics";
+import PalaceBackdrop2D from "@/ui/PalaceBackdrop2D";
+import type { StyledAppearance } from "@/ui/appearance";
 import { DECOR_LABELS } from "@/content/harem";
 const PalaceCanvas = dynamic(() => import("@/3d/PalaceCanvas"), { ssr: false });
 function PalaceStage({
@@ -24,9 +24,12 @@ function PalaceStage({
   appearance,
 }: {
   active: boolean;
-  appearance?: CosmeticAppearance;
+  appearance?: StyledAppearance;
 }) {
   const root = useRef<HTMLElement>(null);
+  const [cameraView, setCameraView] = useState<"portrait" | "wide" | "close">(
+    "portrait",
+  );
   const [preference, setPreference] =
     useState<GraphicsPreference>(DEFAULT_GRAPHICS);
   const [quality, setQuality] = useState<Quality | "2d">("2d");
@@ -165,13 +168,16 @@ function PalaceStage({
       data-mode={mode}
     >
       <div className="palace-viewport">
-        <div className="palace-flat" aria-hidden="true">
-          <PalaceIllustration />
-        </div>
+        <PalaceBackdrop2D
+          appearance={appearance}
+          cameraView={cameraView}
+          hidden={mode === "3d"}
+        />
         {initialized && mode === "3d" && (
           <SceneErrorBoundary key={generation} onFailure={failure}>
             <PalaceCanvas
               appearance={appearance}
+              cameraView={cameraView}
               quality={quality as Quality}
               visible={visible}
               reducedMotion={reducedMotion}
@@ -193,6 +199,26 @@ function PalaceStage({
             />
           </div>
         )}
+        {mode === "3d" && ready && (
+          <div
+            className="palace-hotspot-strip"
+            aria-label="Điểm chạm trong viện"
+          >
+            {[
+              ["Bàn trà", "Một chén trà ấm đang đợi bên cửa."],
+              ["Đèn lồng", "Ánh đèn son làm dịu một góc cung viện."],
+              ["Sập gỗ", "Chỗ tĩnh dưỡng sau những việc trong ngày."],
+            ].map(([name, text]) => (
+              <button
+                className="palace-world-hotspot"
+                key={name}
+                onClick={() => setCaption(text)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="palace-title">
           <span className="eyebrow">MỘT GÓC YÊN GIỮA CHỐN CUNG ĐÌNH</span>
           <h2>Cung viện của bạn</h2>
@@ -202,6 +228,34 @@ function PalaceStage({
               : "Nền 2D · Mọi hành động vẫn luôn sẵn sàng"}
           </p>
         </div>
+        {mode === "2d" && appearance && (
+          <details className="palace-cosmetic-card" data-testid="cosmetic-2d">
+            <summary>
+              {appearance.name} · Cung viện cấp {appearance.level}
+            </summary>
+            <small>
+              {appearance.outfitName ?? "Y phục mộc"}
+              {appearance.headName ? ` · ${appearance.headName}` : ""}
+              {appearance.accessoryName ? ` · ${appearance.accessoryName}` : ""}
+            </small>
+            <small>
+              Y phục ·{" "}
+              {appearance.outfit?.pattern === "DIAMOND"
+                ? "Hình thoi"
+                : appearance.outfit?.pattern === "WAVES"
+                  ? "Đường vân"
+                  : "Viền"}
+            </small>
+            <ul>
+              {Object.entries(appearance.decor).map(([slot, d]) => (
+                <li key={slot}>
+                  {DECOR_LABELS[slot as keyof typeof DECOR_LABELS]} ·{" "}
+                  {["Mộc", "Viền son", "Vân ngọc"][d.style]}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </div>
       <div className="palace-toolbar">
         <details>
@@ -232,40 +286,21 @@ function PalaceStage({
             . Lựa chọn được lưu trên thiết bị này.
           </small>
         </details>
-      </div>
-      {mode === "2d" && appearance && (
-        <div className="palace-cosmetic-card" data-testid="cosmetic-2d">
-          <strong>{appearance.name}</strong>
-          <span>Cung viện cấp {appearance.level}</span>
-          <small>
-            {appearance.outfitName ?? "Y phục mộc"}
-            {appearance.headName ? ` · ${appearance.headName}` : ""}
-            {appearance.accessoryName ? ` · ${appearance.accessoryName}` : ""}
-          </small>
-          <div
-            className="figure-swatch"
-            style={{
-              background: appearance.outfit?.color ?? "#9a6556",
-              borderColor: appearance.outfit?.accent ?? "#c6ac76",
-            }}
-          />{" "}
-          <small>
-            {appearance.outfit
-              ? `Y phục · ${appearance.outfit.pattern === "BORDER" ? "Viền" : appearance.outfit.pattern === "DIAMOND" ? "Hình thoi" : "Đường vân"}`
-              : "Y phục mộc"}
-            {appearance.headColor ? " · Có trâm cài" : ""}
-            {appearance.accessoryColor ? " · Có trang sức" : ""}
-          </small>
-          <ul>
-            {Object.entries(appearance.decor).map(([slot, d]) => (
-              <li key={slot}>
-                {DECOR_LABELS[slot as keyof typeof DECOR_LABELS]} ·{" "}
-                {["Mộc", "Viền son", "Vân ngọc"][d.style]}
-              </li>
-            ))}
-          </ul>
+        <div className="camera-switch" aria-label="Góc nhìn nhân vật">
+          <button
+            aria-pressed={cameraView === "wide"}
+            onClick={() => setCameraView("wide")}
+          >
+            Toàn cảnh
+          </button>
+          <button
+            aria-pressed={cameraView === "close"}
+            onClick={() => setCameraView("close")}
+          >
+            Cận cảnh
+          </button>
         </div>
-      )}
+      </div>
       {(reason || caption) && (
         <p className="palace-caption" role="status">
           {caption || reason}

@@ -1,12 +1,15 @@
 "use client";
+import { CourtIcon, Ornament } from "@/ui/Court";
 export default function ErrorScreen({ reset }: { reset: () => void }) {
   return (
     <main className="auth-shell site-shell">
       <section className="auth-card">
+        <CourtIcon symbol="seal" className="auth-seal" />
         <h1>Chưa thể vào triều</h1>
+        <Ornament />
         <p>
-          Không thể đọc dữ liệu. Hãy kiểm tra kết nối, biến môi trường và thứ tự
-          migration trong README.
+          Chưa thể mở sổ trong viện. Hãy kiểm tra kết nối và thử lại sau ít
+          phút.
         </p>
         <button className="primary-button" onClick={reset}>
           Thử lại

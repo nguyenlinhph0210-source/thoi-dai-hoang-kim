@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Landmark, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { CourtIcon, Ornament } from "@/ui/Court";
 import { authenticate } from "@/app/login/actions";
 export default function AuthScreen({ local }: { local: boolean }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -11,10 +12,11 @@ export default function AuthScreen({ local }: { local: boolean }) {
   return (
     <main className="site-shell auth-shell">
       <section className="auth-card">
-        <Landmark size={40} />
+        <CourtIcon symbol="seal" className="auth-seal" />
         <span className="eyebrow">HOÀNG TRIỀU ĐẠI KHÁNH</span>
         <h1>ĐẠI NỘI KÝ</h1>
         <p>Một kiếp người · Vạn lối đi</p>
+        <Ornament />
         <h2>{mode === "signin" ? "Đăng nhập" : "Đăng ký tài khoản"}</h2>
         {local && (
           <p className="local-note">

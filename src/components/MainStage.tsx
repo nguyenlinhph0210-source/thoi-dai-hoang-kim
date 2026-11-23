@@ -30,7 +30,10 @@ import PalaceIllustration from "./PalaceIllustration";
 import PalaceStage from "./PalaceStage";
 import HaremProfile from "./HaremProfile";
 import { titledRank, cosmeticAppearance } from "@/lib/cosmeticRules";
-import { HONORIFICS } from "@/content/harem";
+import { HONORIFICS, HAREM_ITEMS, CHAMBER_DECOR } from "@/content/harem";
+import ScrollSheet from "@/ui/ScrollSheet";
+import { CourtIcon, Ornament } from "@/ui/Court";
+import { displayAppearance, type PreviewSelection } from "@/ui/appearance";
 const tabs = [
   { key: "profile", name: "Hồ sơ", icon: UserRound },
   { key: "stage", name: "Sân khấu", icon: Crown },
@@ -57,6 +60,7 @@ export default function MainStage({
     [sending, setSending] = useState(false),
     [loading, setLoading] = useState(false);
   const [cosmeticPending, setCosmeticPending] = useState(false);
+  const [preview, setPreview] = useState<PreviewSelection | null>(null);
   const [eventResult, setEventResult] = useState<PublicActionLog | null>(null);
   const [retry, setRetry] = useState<
     ({ code: ActionCode; key: string } & Partial<ResolveEventInput>) | null
@@ -216,8 +220,13 @@ export default function MainStage({
   ]);
   const c = state.character!;
   const appearance = useMemo(
-    () => cosmeticAppearance(c.rankId, state.cosmetics),
-    [c.rankId, state.cosmetics],
+    () =>
+      displayAppearance(
+        cosmeticAppearance(c.rankId, state.cosmetics),
+        state.cosmetics?.equipment,
+        preview,
+      ),
+    [c.rankId, state.cosmetics, preview],
   );
   async function act(code: ActionCode, choice?: ResolveEventInput) {
     if (busy.current || cosmeticPending) return;
@@ -279,6 +288,8 @@ export default function MainStage({
   const profile = (
     <HaremProfile
       state={state}
+      preview={preview}
+      onPreview={setPreview}
       disabled={sending || !!retry}
       onPending={setCosmeticPending}
       onComplete={() => refresh()}
@@ -439,7 +450,7 @@ export default function MainStage({
       <header className="topbar stage-topbar">
         <a href="/" className="brand">
           <span className="brand-mark">
-            <Landmark size={24} />
+            <CourtIcon symbol="seal" />
           </span>
           <span>
             ĐẠI NỘI KÝ<small>HOÀNG TRIỀU ĐẠI KHÁNH</small>
@@ -471,11 +482,36 @@ export default function MainStage({
           </button>
         </form>
       </header>
+      <div className="court-backdrop">
+        {c.branch === "HAREM" ? (
+          <PalaceStage active appearance={appearance} />
+        ) : (
+          <div className="court-flat-background">
+            <PalaceIllustration />
+          </div>
+        )}
+      </div>
+      <div className="court-edge" aria-hidden="true" />
+      {preview && (
+        <div className="tryon-badge" role="status" data-testid="tryon-status">
+          <CourtIcon symbol="fan" />
+          <span>
+            Đang thử ·{" "}
+            {
+              [...HAREM_ITEMS, ...CHAMBER_DECOR].find(
+                (i) => i.code === preview.code,
+              )?.name
+            }
+          </span>
+          <button onClick={() => setPreview(null)}>Thoát thử</button>
+        </div>
+      )}
       <main className="stage-layout">
         <section className="stage-intro">
           <div className="eyebrow">PHỤNG THIÊN PHỦ · MỘT NGÀY TRONG TRIỀU</div>
           <h1>Sân khấu chính</h1>
           <p>Chọn một việc hôm nay, viết một nét cho cuộc đời.</p>
+          <Ornament />
         </section>
         <ReadWarnings warnings={state.readWarnings} />
         {message && (
@@ -537,114 +573,108 @@ export default function MainStage({
             </button>
           </div>
         )}
-        <div className="stage-columns">
-          <div
-            className={`mobile-pane ${tab === "profile" ? "pane-active" : ""}`}
-          >
-            {profile}
-          </div>
-          <section
-            className={`stage-paper stage-center mobile-pane ${tab === "stage" ? "pane-active" : ""}`}
-          >
-            {c.branch === "HAREM" ? (
-              <PalaceStage active={tab === "stage"} appearance={appearance} />
-            ) : (
-              <div className="stage-scene">
-                <PalaceIllustration />
-                <span className="eyebrow">CỬA CUNG ĐÃ MỞ</span>
-                <h2>Mỗi việc nhỏ, một bước xa</h2>
-                <p>Trau dồi căn cốt, giữ vững lòng mình giữa chốn kinh kỳ.</p>
-              </div>
-            )}
-            <EventCards
-              events={state.pendingEvents ?? []}
-              serverNow={now}
-              pending={sending || !!retry || cosmeticPending}
-              onChoose={(choice) => void act("RESOLVE_EVENT", choice)}
-            />
-            <div className="section-caption">
-              <BookOpen size={16} />
-              <h2>Việc trong ngày</h2>
-            </div>
-            <div className="action-grid">
-              {Object.values(ACTIONS)
-                .filter(
-                  (a) =>
-                    ![
-                      "EXAM",
-                      "APPLY",
-                      "WITHDRAW",
-                      "RESOLVE_EVENT",
-                      "COSMETIC",
-                    ].includes(a.code),
-                )
-                .map((a) => {
-                  const reason = state.actionLocks[a.code];
-                  return (
-                    <article
-                      className={`action-card ${reason ? "action-locked" : ""}`}
-                      key={a.code}
-                    >
-                      <div className="action-card-title">
-                        <h3>{a.branchNames?.[c.branch] ?? a.name}</h3>
-                        <span>{a.apCost} AP</span>
-                      </div>
-                      <p>{a.description}</p>
-                      <small>
-                        Còn{" "}
-                        {Math.max(0, a.dailyCap - (state.usage[a.code] ?? 0))}/
-                        {a.dailyCap} hôm nay
-                        {a.silverCost > 0 ? ` · ${a.silverCost} lượng` : ""}
-                        {a.hpCost > 0 ? ` · ${a.hpCost} thể lực` : ""}
-                      </small>
-                      <button
-                        className="action-button"
-                        data-testid={`action-${a.code}`}
-                        disabled={
-                          sending || !!retry || cosmeticPending || !!reason
-                        }
-                        onClick={() => void act(a.code)}
-                      >
-                        {sending && requestRef.current?.code === a.code ? (
-                          <Loader2 size={14} className="spin" />
-                        ) : (
-                          <ChevronRight size={14} />
-                        )}
-                        Thực hiện
-                      </button>
-                      {reason && <span className="lock-reason">{reason}</span>}
-                    </article>
-                  );
-                })}
-            </div>
-            <p className="stage-muted">
-              Đọc trang không tốn AP. Hạn mức theo tài khoản và ngày thực Việt
-              Nam.
-            </p>
-          </section>
-          <aside className="stage-right">
-            <section
-              className={`stage-paper ranks-panel mobile-pane ${tab === "ranks" ? "pane-active" : ""}`}
-            >
-              <div className="section-caption">
-                <Landmark size={16} />
-                <h2>Quan chế</h2>
-              </div>
-              <SeatBoard
-                ownTitle={titledRank(c.rankId, state.cosmetics)}
-                rows={state.seatBoard ?? []}
-                branch={c.branch}
-                currentRankId={c.rankId}
-                targetRankId={state.promotion?.targetRankId ?? null}
-              />
-            </section>
+        <ScrollSheet activeKey={tab} previewCode={preview?.code}>
+          <div className="stage-columns">
             <div
-              className={`mobile-pane ${tab === "logs" ? "pane-active" : ""}`}
+              className={`mobile-pane ${tab === "profile" ? "pane-active" : ""}`}
             >
-              {logPanel}
+              {profile}
             </div>
-          </aside>
-        </div>
+            <section
+              className={`stage-paper stage-center mobile-pane ${tab === "stage" ? "pane-active" : ""}`}
+            >
+              <EventCards
+                events={state.pendingEvents ?? []}
+                serverNow={now}
+                pending={sending || !!retry || cosmeticPending}
+                onChoose={(choice) => void act("RESOLVE_EVENT", choice)}
+              />
+              <div className="section-caption">
+                <BookOpen size={16} />
+                <h2>Việc trong ngày</h2>
+              </div>
+              <div className="action-grid">
+                {Object.values(ACTIONS)
+                  .filter(
+                    (a) =>
+                      ![
+                        "EXAM",
+                        "APPLY",
+                        "WITHDRAW",
+                        "RESOLVE_EVENT",
+                        "COSMETIC",
+                      ].includes(a.code),
+                  )
+                  .map((a) => {
+                    const reason = state.actionLocks[a.code];
+                    return (
+                      <article
+                        className={`action-card ${reason ? "action-locked" : ""}`}
+                        key={a.code}
+                      >
+                        <div className="action-card-title">
+                          <h3>{a.branchNames?.[c.branch] ?? a.name}</h3>
+                          <span>{a.apCost} AP</span>
+                        </div>
+                        <p>{a.description}</p>
+                        <small>
+                          Còn{" "}
+                          {Math.max(0, a.dailyCap - (state.usage[a.code] ?? 0))}
+                          /{a.dailyCap} hôm nay
+                          {a.silverCost > 0 ? ` · ${a.silverCost} lượng` : ""}
+                          {a.hpCost > 0 ? ` · ${a.hpCost} thể lực` : ""}
+                        </small>
+                        <button
+                          className="action-button"
+                          data-testid={`action-${a.code}`}
+                          disabled={
+                            sending || !!retry || cosmeticPending || !!reason
+                          }
+                          onClick={() => void act(a.code)}
+                        >
+                          {sending && requestRef.current?.code === a.code ? (
+                            <Loader2 size={14} className="spin" />
+                          ) : (
+                            <ChevronRight size={14} />
+                          )}
+                          Thực hiện
+                        </button>
+                        {reason && (
+                          <span className="lock-reason">{reason}</span>
+                        )}
+                      </article>
+                    );
+                  })}
+              </div>
+              <p className="stage-muted">
+                Đọc trang không tốn AP. Hạn mức theo tài khoản và ngày thực Việt
+                Nam.
+              </p>
+            </section>
+            <aside className="stage-right">
+              <section
+                className={`stage-paper ranks-panel mobile-pane ${tab === "ranks" ? "pane-active" : ""}`}
+              >
+                <div className="section-caption">
+                  <Landmark size={16} />
+                  <h2>Quan chế</h2>
+                </div>
+                <SeatBoard
+                  ownTitle={titledRank(c.rankId, state.cosmetics)}
+                  rows={state.seatBoard ?? []}
+                  branch={c.branch}
+                  currentRankId={c.rankId}
+                  targetRankId={state.promotion?.targetRankId ?? null}
+                />
+              </section>
+              <div
+                className={`mobile-pane ${tab === "logs" ? "pane-active" : ""}`}
+              >
+                {logPanel}
+              </div>
+            </aside>
+          </div>
+        </ScrollSheet>
       </main>
       <nav className="bottom-nav" aria-label="Điều hướng chính">
         {tabs.map((t) => (
@@ -652,7 +682,10 @@ export default function MainStage({
             key={t.key}
             className={tab === t.key ? "active" : ""}
             aria-current={tab === t.key ? "page" : undefined}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              setPreview(null);
+            }}
           >
             <t.icon size={20} />
             <span>

@@ -20,10 +20,10 @@
 
 ### 1.2. Thiết kế Giao diện Đáp ứng (Responsive Layout)
 - **Mobile (`< 1024px`):**
-  - Khung hiển thị dọc tỷ lệ chuẩn **9:16** (`max-w-md mx-auto min-h-dvh flex flex-col`).
+  - Ưu tiên màn hình dọc. Từ H1.1, game dùng cảnh nền toàn viewport và cuộn thư; login/setup giữ khung giấy đáp ứng.
   - Có thanh điều hướng dưới cùng (**Bottom Navigation Bar**) cố định giúp chuyển đổi nhanh giữa các tab: *Hồ sơ Thân phận*, *Sân khấu Chính / Sự kiện*, *Quan chế / Lục viện*, và *Nhật ký Triều chính*.
 - **Desktop (`>= 1024px`):**
-  - Bố cục **3 cột (3-Column Grid Layout)** hiển thị đồng thời toàn bộ không gian thông tin:
+  - Bố cục **3 vùng chức năng** hiển thị đồng thời; từ H1.1 các khung phủ lên cảnh liền mạch, không cắt cảnh thành các ô:
     - **Cột trái (Left Panel):** Hồ sơ nhân vật, Thân phận, Xuất thân, Phẩm cấp hiện tại, Tiến trình 3 điều kiện thăng phẩm và Bảng 7 chỉ số cốt lõi (ẩn chỉ số *Nghi Kỵ* trên UI thông thường, chỉ hiển thị cảnh báo trạng thái hoặc qua cơ chế dò xét).
     - **Cột giữa (Center Stage):** Sân khấu chính hiển thị bối cảnh hiện tại, tương tác hành động tiêu tốn AP, hội thoại và xử lý Sự kiện (Event Cards & Choices).
     - **Cột phải (Right Panel):** Bảng quan chức Ngoại triều / Phẩm vị Hậu cung & Nội cung (số ghế trống/đã chiếm), danh sách NPC trọng yếu, quan hệ phe phái và Nhật ký triều chính (World & Court Logs).
@@ -37,15 +37,26 @@
 - Giới hạn: đây là bộ kiểm tra từ vựng, không phải parser PostgreSQL hay kiểm chứng điều kiện nghiệp vụ. Bỏ comment/chuỗi dữ liệu nhưng quét thân AS/DO dollar-quoted. SQL dựng động bằng EXECUTE/ghép chuỗi không được phân tích đầy đủ; phải rà soát riêng. Fixture SQL trong tests không phải đường SQL sản xuất. Bộ kiểm tra bỏ WHERE của truy vấn con khi xét UPDATE/DELETE ngoài nó.
 - Log DB chỉ tên RPC/bảng cố định, code/message/hint/details đã lọc; không log error object, đối số, URL, header, khóa, token, ID/email, chỉ số hoặc bản ghi người chơi. Nội dung chẩn đoán chưa được duyệt phải bị che.
 
-### 1.4. Đồ họa 3D (G1 — prototype)
+### 1.4. Đồ họa 3D (G1, H1, H1.1)
 
 - 3D chỉ là nền trang trí. Chữ, nút, hotspot, sự kiện và kết quả luôn là HTML 2D; không đổi luật game, đồng hồ/AP, RNG, API nghiệp vụ hoặc database để phục vụ đồ họa.
 - Chỉ nhánh Hậu cung có cảnh mẫu “Cung viện của bạn”. Các nhánh khác giữ nền cũ. Có chế độ 2D đầy đủ tính năng, tự dùng khi thiếu WebGL2, máy yếu/tiết kiệm dữ liệu, lỗi renderer/context hoặc người chơi chọn.
 - Three/Fiber/Drei ghim phiên bản tương thích React18, chỉ nằm sau dynamic import client-only, SSR=false; không tải chunk renderer ở login hay lúc chọn2D. Error boundary và context-loss chuyển2D, log hằng an toàn, không exception object/PII.
-- Ưu tiên điện thoại tầm trung: Low DPR1, Medium/High tối đa1.5; chỉ High có bóng mềm512px. Hemisphere + một directional, đèn emissive không thêm light. Ngân sách toàn cảnh dưới100.000 tam giác, giới hạn model/texture tại `src/3d/assets.ts`.
-- Demand khi đứng yên, never khi ẩn tab/ngoài viewport/tab mobile khác. Dao động camera chỉ ngắn sau mở/tương tác và tắt với prefers-reduced-motion. Đo hai cửa sổ FPS liên tục để giảm chất lượng; thời gian idle không được tính thành khung chậm. Cài đặt lưu local thiết bị, không dùng tài khoản/DB.
+- Ưu tiên điện thoại tầm trung: Low DPR1, Medium/High tối đa1.5; chỉ High có bóng mềm512px. Hemisphere + một directional, đèn emissive không thêm light. Ngân sách H1.1 toàn cảnh tối đa40.000 tam giác, giới hạn model/texture tại `src/3d/assets.ts`.
+- Demand khi đứng yên, never khi tab trình duyệt bị ẩn/ngoài viewport. H1.1 giữ cảnh nhìn thấy khi chuyển tab game. Dao động camera chỉ ngắn sau mở/tương tác và tắt với prefers-reduced-motion. Đo hai cửa sổ FPS liên tục để giảm chất lượng; thời gian idle không được tính thành khung chậm. Cài đặt lưu local thiết bị, không dùng tài khoản/DB.
 - Tài nguyên tự tạo hoặc CC0 có nguồn/giấy phép trong `public/models/CREDITS.md`; không CDN mặc định. GLB tùy chọn, thiếu thì dùng procedural. Draco/Meshopt/KTX2 có loader, decoder cần tự host và giữ license phần mềm. Đọc `docs/3D_ASSETS.md`, chạy check:models trước build.
-- Mobile vùng cảnh khoảng45svh, desktop nền cột giữa; tải có progress tiếng Việt trong khung cố định. `?debug3d=1` chỉ có panel ở development; báo phép đo thật/chunk gzip và giới hạn thiết bị thử trong PR, không coi SwiftShader là điện thoại thật.
+- H1.1 thay bố cục G1: Mobile cảnh phủ nền, cuộn thư ba mức thu gọn/nửa/đầy; thu gọn để lộ cảnh ít nhất60% chiều cao ở390×844. Desktop khung trái/phải phủ cảnh lớn, không chia nền thành ô; tải có progress tiếng Việt trong khung cố định. `?debug3d=1` chỉ có panel ở development; báo phép đo thật/chunk gzip và giới hạn thiết bị thử trong PR, không coi SwiftShader là điện thoại thật.
+
+
+- H1.1: nhân vật là tâm điểm, camera chân dung mặc định, Toàn cảnh/Cận cảnh và orbit/zoom giới hạn. Hình khối tự tạo, áo kín nhiều lớp/lathe/capsule, tóc/búi/mặt cách điệu, trâm/trang sức gắn đúng vị trí; không rig/GLB/VRM mới. Nội thất đổi hình theo style, thêm chi tiết theo cấp; mái cong extrude, lattice giấy dó, rèm châu, sàn vân gỗ canvas.
+- Texture procedural cache theo mã/palette/độ phân giải128 (Thấp) hoặc256 (còn lại), tối đa48 mục không dùng được giữ; không tạo texture mỗi frame, giải phóng khi rời renderer. Thấp bỏ rèm/hạt/chi tiết đắt; hạt instancing số lượng12, không hậu kỳ nặng. Thở/hạt chỉ chuyển động trong các cửa sổ vẽ ngắn sau mở/tương tác, giảm chuyển động tắt thở/di chuyển hạt (TODO(spec): ưu tiên demand đứng yên/pin hơn hoạt ảnh vô hạn).
+- Thử đồ/bày biện tự thu gọn cuộn thư trên mobile để thấy mẫu, giữ Mua/Mặc/Bày ở đầu cuộn; là trạng thái hiển thị riêng, không đổi DTO game/ownership/chỉ số, không ghi API cho tới khi bấm Mua/Mặc/Bày. Thử được món chưa mua/chưa đủ phẩm; ghi vẫn chịu mọi guard H1. Thoát hoặc rời Hồ sơ trả hình trang bị thật. 2D dùng SVG phân lớp cùng tham số và cơ chế thử; mọi thẻ catalog/tủ đồ/bày biện có hình SVG và viền tầng.
+
+### 1.5. Bộ giao diện cổ phong (H1.1)
+
+- Nguồn token và thành phần chung ở `src/ui/`: đỏ son/vàng/đen huyền/gỗ/kem giấy dó, khung hai nét/góc chạm, hoa văn mây/sóng/cánh lá cách điệu, giấy/lụa gradient nhẹ, nút ấn triện/gỗ; chữ/nút luôn HTML, không nằm trong texture. SVG riêng đèn lồng/quạt/ấn/trâm/ngọc bội bổ sung Lucide. Áp dụng login/setup/hồ sơ/y phục/viện/sân khấu/Quan chế/nhật ký/loading/lỗi/dialog.
+- Font tiêu đề Noto Serif, nội dung Be Vietnam Pro, tự host WOFF2 subset vietnamese/latin/latin-ext; OFL-1.1 và nguồn trong `public/fonts/CREDITS.md`. Không phụ thuộc Google Fonts lúc build/chơi. Mọi văn bản src phải NFC, test tĩnh so normalize('NFC'), giữ đủ dấu tiếng Việt; không dùng ký tự dấu ghép/ASCII giả dấu.
+- Cuộn thư kéo bằng handle riêng, có nút ba mức dùng bàn phím; nội dung tự cuộn, không chiếm gesture camera. Chuyển tab giữ cảnh; cảnh ẩn tài liệu/ngoài viewport dừng vẽ. Không đổi luật game/API ghi/schema/migration vì giao diện. Ảnh trước/sau390×844 và1440×900, số đo thật/giới hạn thiết bị ghi trong PROGRESS và PR.
 
 ---
 

@@ -1,6 +1,6 @@
-# Đường ống mô hình 3D — G1
+# Đường ống mô hình 3D — G1 / H1.1
 
-Cảnh hiện tại dùng hình khối tự tạo, không cần tải GLB hay texture. Tài nguyên 3D chỉ là nền;
+Cảnh H1.1 dùng hình khối tự tạo, không cần GLB ngoài. Texture vân gỗ/lụa được vẽ bằng canvas nhỏ128/256px, cache theo mã/palette/độ phân giải và giải phóng khi rời renderer. Không sinh texture mỗi frame. Tài nguyên 3D chỉ là nền;
 chữ, hotspot, thao tác và kết quả game vẫn là HTML. Xem `src/3d/PalaceRoom.tsx` để thay từng slot,
 `src/3d/assets.ts` để đăng ký file, loại, đường dẫn và ngân sách. Không thay logic game để nạp mô hình.
 
@@ -12,7 +12,7 @@ chữ, hotspot, thao tác và kết quả game vẫn là HTML. Xem `src/3d/Palac
 | Nội thất: bình phong, sập, bàn | 8.000 | 2 MiB | 1024 × 1024 |
 | Trang trí: bình hoa, đèn lồng | 2.000 | 1 MiB | 512 × 512 |
 
-Toàn cảnh **dưới 100.000 tam giác**, tính cả số lần nhân bản (đèn có hai chiếc). Ngân sách model
+Toàn cảnh H1.1 **tối đa40.000 tam giác**, tính cả số lần nhân bản (đèn có hai chiếc). Ngân sách model
 không tự cho phép vượt ngân sách cảnh. Khi vượt texture/tam giác lúc nạp, trả về 2D. Script kiểm
 tra byte/registry/credits/GLB header, không thay việc kiểm topology/UV/giấy phép bằng mắt.
 
@@ -60,9 +60,22 @@ tra byte/registry/credits/GLB header, không thay việc kiểm topology/UV/gi�
 Low DPR1; Medium/High tối đa1.5. Chỉ High có bóng PCF mềm đơn giản512px; ánh sáng gồm một hemisphere
 và một directional. Khởi động đo khung hình theo hai cửa sổ2s, giảm chất lượng khi tụt kéo dài.
 Dao động camera rất nhẹ chỉ6s sau mở/3s sau tương tác; tắt với reduced-motion. Khi đứng yên dùng demand,
-khi ẩn tab/ngoài viewport/tab Sân khấu mobile không hiển thị dùng never. Không có render loop vô hạn.
+khi tab trình duyệt bị ẩn/ngoài viewport dùng never. H1.1 giữ cảnh nền qua các tab game. Không có render loop vô hạn.
 
 Chạy dev, thêm `?debug3d=1`: FPS, tam giác hình học, tam giác thực vẽ (gồm shadow pass), draw calls.
 Production không có bảng debug dù có query. FPS chỉ có ý nghĩa khi đang vẽ, không phải lúc demand đã nghỉ.
 `npm run measure:3d` sau build báo tổng gzip các chunk dành riêng cho dynamic PalaceCanvas;
 không tính shared React/Next, model/decoder chưa phân phối, không tính gzip như thời gian tải mạng thực.
+
+## H1.1 — phạm vi hiển thị
+
+Mái cong extrude, lathe áo/bình, capsule tay, rèm/hạt instancing, lattice giấy dó; không model/rig/VRM ngoài mới.
+Thấp dùng8 segments chính/texture128, Trung bình12/Cao16/texture256; chỉ Cao có shadow. Hạt tối đa12
+và không có ở Thấp. Cache texture giữ tối đa48 mục không dùng, đang dùng được giữ tới khi unmount;
+clear không dispose tài nguyên của scene khác. Đứng yên demand, ẩn tab never; thở/hạt chỉ chuyển động trong
+cửa sổ warm-up/settle của G1, reduced-motion tắt chuyển động đó. Không thêm loop vẽ vô hạn.
+
+Kiểu decor có silhouette khác nhau: số cánh bình phong, đèn hộp/tròn/lục giác, bàn chữ nhật/tròn/có tầng,
+hoa/cây, tranh cuộn/tròn, lư có nắp/tay cầm. Cấp2 thêm thảm, cấp3 đai cột, cấp4 rèm, cấp5 cây kê đôn.
+Thử đồ là DTO hiển thị riêng ở src/ui/appearance.ts, không ghi trang bị thật; SVG và3D cùng mã/màu/hoa văn.
+Nội dung là cách điệu hư cấu, không tuyên bố tái dựng kiến trúc/phẩm phục lịch sử chính xác.

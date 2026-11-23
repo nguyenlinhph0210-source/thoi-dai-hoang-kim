@@ -1,0 +1,25 @@
+:root {
+  --court-son: #843b32;
+  --court-gold: #d3b475;
+  --court-gold-muted: #ae8b53;
+  --court-ink: #241c1c;
+  --court-wood: #49302a;
+  --court-paper: #f4ebd7;
+  --court-paper-dark: #e2d0ab;
+  --court-jade: #657868;
+  --font-body: "Be Vietnam Pro", Arial, sans-serif;
+  --font-display: "Noto Serif", Georgia, serif;
+  --ink: #3c302a;
+  --muted: #786652;
+  --red: var(--court-son);
+  --gold: #99713c;
+  --line: #b7945e66;
+  --court-border: 1px solid #b8945b;
+  --court-shadow: 0 12px 45px #1a101044;
+  --court-header: 82px;
+  --court-nav: 70px;
+  --court-paper-fill:
+    repeating-linear-gradient(103deg, #d6c5a407 0 1px, transparent 1px 5px),
+    radial-gradient(ellipse at 30% 0, #fff9e8aa, transparent 75%),
+    linear-gradient(#f4ecddef, #eee1c9f5);
+}

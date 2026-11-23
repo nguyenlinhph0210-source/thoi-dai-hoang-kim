@@ -1,4 +1,4 @@
-# ĐẠI NỘI KÝ — H1 · Y phục, cung viện và phong hiệu
+# ĐẠI NỘI KÝ — H1.1 · Cung viện và giao diện cổ phong
 
 Next.js App Router, TypeScript strict, Tailwind, Lucide và Supabase. Quy tắc: [AGENTS.md](AGENTS.md). Tiến độ, giả định, TEMP và checklist: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -20,6 +20,29 @@ npm run test:e2e
 Thiếu toàn bộ cấu hình Supabase thì dùng `InMemoryGameRepository`: mỗi tài khoản có email/mật khẩu/phiên riêng, không có người dùng demo chung. Dữ liệu mất khi restart; chỉ dùng một process cho local/test. Không dùng InMemory cho triển khai nhiều máy chủ. Một phần cấu hình Supabase bị thiếu sẽ báo lỗi, không âm thầm chuyển sang local. Local production HTTP cần `COOKIE_SECURE=false`; HTTPS mặc định Secure.
 
 Playwright chạy production build tại cổng 3100 với InMemory. Dùng `/usr/bin/chromium`, hoặc cài `npx playwright install chromium`/đặt `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Không chạy dev server đồng thời với build trong cùng `.next`.
+
+## Cung viện liền mạch (H1.1)
+
+Cảnh phủ nền và nhân vật là tâm điểm. Mobile dùng **cuộn thư kéo ba mức** Thu gọn/Mở nửa/Mở đầy;
+chỉ kéo ở thanh đầu để nội dung vẫn cuộn và camera vẫn xoay được. Có nút cho bàn phím. Desktop giữ
+hồ sơ/Quan chế/nhật ký trong khung phủ lên cảnh. Chuyển tab giữ cảnh, giao diện vẫn là HTML.
+
+Trong Y phục/Cung viện, chạm hình **Thử đồ/Xem trong viện** để xem ngay cả món chưa mua/chưa đủ phẩm.
+Nhấn **Thoát thử** hoặc rời Hồ sơ để về trang bị thật. Thử chỉ đổi hiển thị; Mua/Mặc/Bày mới dùng giao dịch H1.
+Mọi thẻ có minh họa SVG; chế độ2D có hình nhân phân lớp, cùng thử đồ và đầy đủ chức năng.
+Camera có **Toàn cảnh/Cận cảnh**. Thấp bỏ hạt/rèm châu; mức khác có chi tiết vừa phải, chỉ Cao có shadow.
+Thở/hạt chỉ chạy trong cửa sổ vẽ ngắn sau mở/tương tác; đứng yên dùng demand, ẩn tab dừng vẽ.
+
+Bộ token/khung/nút/hoa văn/SVG tại `src/ui/`, dùng chung cả login/setup/loading/lỗi/dialog.
+Font Noto Serif và Be Vietnam Pro tự host, có subset vietnamese và OFL: [credits](public/fonts/CREDITS.md).
+`npm test` kiểm NFC toàn bộ src và hình minh họa toàn danh mục; không cần Google Fonts/CDN lúc build/chơi.
+Texture vân gỗ/lụa tự tạo bằng canvas, cache theo mã và mức128/256px, không tạo mỗi frame.
+Ngân sách toàn cảnh H1.1 **40.000 tam giác**, không hậu kỳ nặng hay model ngoài mới.
+
+**Không đổi luật game/API nghiệp vụ/cơ sở dữ liệu; không migration, dependency hay biến môi trường mới.**
+Đã ở H1 thì build/triển khai bình thường. Các migration trong phần dưới chỉ là lịch sử yêu cầu backend.
+Ảnh trước/sau và cách chụp: [docs/screenshots/README.md](docs/screenshots/README.md).
+Giả định, số đo và giới hạn kiểm thử: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Hậu cung đợt 1 (H1)
 

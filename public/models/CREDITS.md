@@ -16,3 +16,4 @@ Không dùng tên file ví dụ làm bằng chứng giấy phép cho một mô h
 Không có decoder/transcoder ngoài đi kèm. Nếu bật Draco hoặc KTX2, tự host decoder
 đúng phiên bản tại models/decoders và lưu LICENSE phần mềm đi kèm (Draco/Basis: Apache-2.0).
 Meshopt dùng bản phân phối đi cùng three (MIT), không tải CDN khi chạy.
+| H1.1 procedural palace, layered figure, clothing textures and SVG art | Tự tạo bằng code; src/3d và src/ui | Dự án Đại Nội Ký | CC0-1.0 | https://creativecommons.org/publicdomain/zero/1.0/ | 2026-11-24 |

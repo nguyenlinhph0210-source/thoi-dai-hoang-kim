@@ -34,6 +34,7 @@ import {
   statLabel,
 } from "@/lib/gameConfig";
 import type { SetupCommand } from "@/lib/characterGenerator";
+import { CourtIcon, Ornament } from "@/ui/Court";
 import PalaceIllustration from "./PalaceIllustration";
 
 const branchIcons = {
@@ -115,7 +116,7 @@ export default function CharacterSetupScreen({
       <header className="topbar">
         <a href="/" className="brand" aria-label="Đại Nội Ký — Trang chủ">
           <span className="brand-mark">
-            <Landmark size={25} strokeWidth={1.3} />
+            <CourtIcon symbol="seal" />
           </span>
           <span>
             ĐẠI NỘI KÝ<small>MỘT KIẾP NGƯỜI · VẠN LỐI ĐI</small>
@@ -140,6 +141,7 @@ export default function CharacterSetupScreen({
             <span /> PHỤNG THIÊN PHỦ · CỬA NGỌ MÔN <span />
           </div>
           <h1>{active ? "Một cuộc đời đã mở" : "Khởi một kiếp người"}</h1>
+          <Ornament />
           <p>
             {active
               ? "Thân phận đã định. Từ đây, mỗi lựa chọn đều để lại dấu ấn."
