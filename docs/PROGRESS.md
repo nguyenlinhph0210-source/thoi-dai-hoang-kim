@@ -1,3 +1,95 @@
+# H1.1 — Hợp nhất giao diện với cảnh 3D
+
+## Đã làm
+
+- Bộ giao diện chung tại src/ui: token son/vàng/đen/gỗ/giấy dó, nền gradient nhẹ, khung hai nét/góc chạm,
+  hoa văn SVG, nút ấn/gỗ, bộ biểu tượng đèn/quạt/ấn/trâm/ngọc. Login, setup, Hồ sơ/Y phục/Cung viện,
+  Sân khấu, Quan chế, nhật ký, loading/lỗi/dialog dùng cùng palette/font/khung.
+- Noto Serif tiêu đề, Be Vietnam Pro nội dung;9 tệp WOFF2 tự host (~324KiB), subset vietnamese/latin/latin-ext,
+  OFL-1.1 đi kèm nguồn trong public/fonts/CREDITS.md. Không CDN lúc build/chơi. Test NFC toàn bộ src.
+- Cảnh HAREM phủ nền, giữ renderer khi chuyển tab; mobile có cuộn thư kéo ba mức và nút bàn phím,
+  thu gọn để lộ>=60% chiều cao ở390×844 và390×720. Desktop trái/phải là khung phủ cảnh, nội dung tự cuộn.
+  Có vignette/viền gỗ, loading đồng phong cách; HTML vẫn giữ mọi chữ/nút và game chơi đầy đủ ở2D.
+- Cảnh procedural có mái cong extrude, lattice giấy dó sáng, tiền/trung/hậu cảnh, cột/xà son, rèm châu,
+  vân gỗ canvas cache và12 hạt ở mức không phải Thấp. Mỗi style decor đổi hình; cấp2 thảm,3 đai cột,
+  4 rèm,5 đôn/cây. Giữ pipeline GLB G1 tương thích nhưng không thêm model/VRM ngoài.
+- Hình nhân lathe/capsule/mesh lớp áo-vạt-tay-thắt lưng, tóc/búi/mặt, trâm/jade/hoa tai; màu/hoa văn
+  theo món. Camera chân dung mặc định, Toàn cảnh/Cận cảnh, orbit/zoom giới hạn. Texture128 ở Thấp,
+  256 ở hai mức còn lại, cache theo mã/palette/resolution; không vẽ texture mỗi frame, có cleanup Fiber root.
+- Tất cả30 gear và18 decor có minh họa SVG/viền tầng, ô đang mặc cũng có hình. Chạm hình thử món chưa mua
+  hoặc chưa đủ phẩm, nhãn Đang thử và Mua/Mặc/Bày; Thoát thử hoặc rời Hồ sơ về hình trang bị thật.
+  Mobile tự thu gọn khi chạm hình thử và giữ nút Mua/Mặc/Bày trong vùng nhìn thấy. State thử chỉ là bản sao hiển thị, không sửa equipment/ownership/chỉ số, không gửi request ghi.
+  Nền2D dùng hình nhân SVG phân lớp và bày biện có hình, cùng mã/màu/hoa văn/thử đồ.
+- Chỉ thay presentation, không đổi src/lib, src/config, src/types, RPC, bảng, migration hay dependency.
+  Toàn bộ21 kịch bản E2E cũ đạt; thêm3 kiểm tra cuộn thư/ảnh/thử đồ/3D→2D. Test mới từng phát hiện
+  pointer capture giữ click nút và kéo chữ native hủy lần kéo lên; handle chỉ capture vùng kéo, chặn kéo chữ, có hồi quy cả hai hướng.
+- Ảnh trước/sau đủ6 màn hình ở390×844 và1440×900, thêm ảnh thử đồ/2D; chỉ mục và script chụp lại ở
+  docs/screenshots/README.md, scripts/capture-interface.cjs. Không dùng fixture quyền sở hữu cho ảnh so sánh.
+
+## Chưa làm / giới hạn
+
+Không thay luật game/DB, không migration mới; không G2 rig/animation phức tạp, GLB/VRM ngoài, nhiều cảnh,
+NPC/kịch bản. Nhánh ngoài HAREM giữ nền minh họa nhưng nhận cùng bộ giao diện. Chưa đo điện thoại thật,
+pin/nhiệt/GPU memory, Safari/iOS hoặc fixture nén Draco/Meshopt/KTX2 thật. **chưa kiểm chứng trên Supabase thật**;
+H1.1 không thêm đường ghi/backend, kiểm tra nghiệp vụ/RPC hồi quy vẫn dùng InMemory/PGlite như trước.
+
+## Giả định / TODO(spec)
+
+1. Bố cục H1.1 thay vùng cảnh45svh/ba cột tách ô của G1. Cảnh lớn chung sau các tab, stage mặc định thu gọn,
+   tab khác mở nửa, nội dung cuộn riêng; có thể kéo hoặc dùng nút để mở đầy. Không lưu mức cuộn thư vào DB.
+2. Thử món chưa sở hữu/chưa đủ phẩm chỉ để xem. Mua/Mặc/Bày vẫn dùng API/giá/guard H1, không auto mua/mặc
+   khi chạm hình; không tăng hiệu ứng/điều kiện thăng phẩm vì đang thử. Chuyển tab chính/thoát/đăng xuất hủy thử.
+3. Art là cách điệu cung đình Việt Nam hư cấu, không tuyên bố phục dựng phẩm phục/kiến trúc lịch sử.
+   Các biến thể hình/hoa văn được sinh từ code/param hiện có; không thêm cột art hay đổi mã catalog đã lưu.
+   Noto Serif mang nét thư tịch, ưu tiên đủ dấu/dễ đọc thay vì font thư pháp thiếu chữ Việt.
+4. TODO(spec): thở/hạt chỉ chạy khi G1 còn vẽ trong warm-up hoặc sau tương tác; không duy trì loop vô hạn để
+   vừa thỏa demand đứng yên vừa tiết kiệm pin. Reduced-motion tắt chuyển động, Thấp bỏ hạt/rèm.
+5. Camera có chân dung ban đầu, hai nút Toàn cảnh/Cận cảnh;2D đổi tỉ lệ hình tương ứng. Không lưu camera vào DB.
+   Token/theme áp dụng mọi nhánh, cảnh mẫu/hình nhân vẫn chỉ HAREM; không mở rộng G3.
+6. Ngân sách H1.1 giảm còn40.000 tam giác toàn cảnh; giữ các mức DPR/shadow/error boundary/codec cũ.
+   Cache giữ tối đa48 mục không dùng, giữ texture còn tham chiếu tới khi root unmount; tránh dispose cache đang dùng.
+7. Ảnh trước/sau là hai tài khoản/nhân vật Memory độc lập, nên tuổi/chỉ số gốc có thể khác do RNG cũ.
+   Bộ đo tối đa chỉ thay DTO hiển thị trong browser test (viện5, style2, ba món), không grant đồ/thăng phẩm ở server.
+   Không có seed/debug endpoint production. Debug metrics chỉ development như G1.
+
+## Số liệu và kiểm chứng
+
+- lint, typecheck, build, check:models đạt; **142 test logic/SQL đạt**, gồm5 test UI mới (NFC, toàn catalog có SVG,
+  bản sao thử đồ không đổi dữ liệu, ba mức kéo, font tự host). **24 Playwright đạt** gồm21 luồng cũ và3 H1.1.
+  Không có chỉnh sửa kỳ vọng nghiệp vụ cũ. Thử mất WebGL/lỗi3D, chunk login/2D, giao dịch H1 cũ vẫn đạt.
+- Đo riêng trên Chromium156/Linux/ANGLE SwiftShader, viewport390×844/DPR1/reduced-motion; dev build đã biên dịch,
+  không throttle mạng/CPU, một cửa sổ2s sau mở mức, fixture hiển thị tối đa (không phải chỉ số người chơi thật):
+
+| Mức chọn | Tam giác hình học toàn cảnh | Tam giác vẽ/frame | Draw calls/frame | FPS cửa sổ đầu |
+| --- | ---: | ---: | ---: | ---: |
+| Thấp | 6.040 | 4.056 | 96 | 29,7 |
+| Trung bình | 8.468 | 6.452 | 98 | 22,9 |
+| Cao | 10.144 | 13.508 gồm shadow pass | 193 | 10,7 |
+
+Tối đa10.144<40.000. FPS là một lượt quan sát GPU phần mềm, không benchmark thống kê hay cam kết điện thoại.
+Thấp sau warm-up37,3FPS; Trung bình28,0FPS và vẫn ở Trung bình. Cao tự hạ xuống Trung bình,
+lần lấy mẫu sau19,0FPS ở **Trung bình**, không gán số này cho Cao. Sau chọn Thấp và chờ7,2s,
+hai mẫu idle cách2,3s giữ nguyên frame counter119; không diễn giải FPS cached30,4 là FPS idle.
+Dev điều hướng lại tới cảnh sẵn sàng đo3.041ms; không coi là tải production/mạng thật.
+Production build/InMemory, context mới,3D Thấp, từ nhấn Xác nhận nhập kinh tới hotspot sẵn sàng: mobile2.066ms, desktop3.329ms (localhost, không throttle). Không phải tải qua mạng điện thoại hay cam kết thời gian.
+
+
+- Renderer production: **277,3KiB gzip / 3 chunk**,1.015,3KiB raw, đo bằng measure:3d sau build. Không cộng shared React/Next, font hoặc GLB/decoder
+  chưa phân phối vào số chunk renderer. Font self-host được tải riêng theo unicode-range, tổng9 tệp khoảng324KiB.
+- Không thêm số TEMP nghiệp vụ. Camera/độ rộng/texture/chi tiết là tham số đồ họa; số cân bằng H1 giữ nguyên.
+
+## Việc người dùng phải làm
+
+1. Merge/triển khai code như thường; **không chạy migration mới, không chạy lại migration cũ**, không env/npm dependency mới.
+   Backend cần đã ở H1 như bối cảnh; lịch sử migration0008 vẫn giữ nguyên.
+2. Xem PR/preview và gallery trước/sau; vào HAREM → Hồ sơ → Y phục/Cung viện, chạm ảnh thử rồi thoát; kiểm dữ liệu
+   thực chỉ đổi khi bấm Mua/Mặc/Bày. Kiểm ba mức cuộn thư bằng kéo/nút và camera Toàn cảnh/Cận cảnh.
+3. Trước phát hành thử Android/iOS tầm trung, màn hình ngắn/dài, gesture, 2D, context loss, reduced-motion,
+   chuyển tab/app, pin/nhiệt/mạng chậm; login/2D không tải chunk3D, font không gọi CDN, dấu Việt đầy đủ/NFC.
+   Hiệu năng SwiftShader không thay thế kiểm chứng điện thoại. Supabase thật dùng checklist H1 cũ nếu triển khai backend.
+
+---
+
 # H1 — Y phục, cung viện, phong hiệu Hậu cung
 
 ## Đã làm

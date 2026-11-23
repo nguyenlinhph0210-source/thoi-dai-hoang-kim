@@ -8,9 +8,11 @@ import { assessFrameWindow, QUALITY_CONFIG, type Quality } from "./quality";
 import { SCENE_TRIANGLE_BUDGET, type ModelManifest } from "./assets";
 import PalaceRoom from "./PalaceRoom";
 import { disposeModelDecoders } from "./ModelSlot";
-import type { CosmeticAppearance } from "@/types/cosmetics";
+import type { StyledAppearance } from "@/ui/appearance";
+import { disposeUnusedProceduralTextures } from "./proceduralTextures";
 interface Props {
-  appearance?: CosmeticAppearance;
+  appearance?: StyledAppearance;
+  cameraView: "portrait" | "wide" | "close";
   quality: Quality;
   visible: boolean;
   reducedMotion: boolean;
@@ -27,6 +29,11 @@ interface Metrics {
   geometryTriangles: number;
   frames: number;
 }
+// Runs inside the Fiber root: its teardown follows that root's delayed unmount.
+function TextureLifetime() {
+  useEffect(() => () => queueMicrotask(disposeUnusedProceduralTextures), []);
+  return null;
+}
 function LoadingProgress({ update }: { update: (value: number) => void }) {
   const progress = useProgress((state) => state.progress);
   useEffect(() => update(Math.max(10, progress)), [progress, update]);
@@ -34,6 +41,7 @@ function LoadingProgress({ update }: { update: (value: number) => void }) {
 }
 function Runtime({
   quality,
+  cameraView,
   visible,
   reducedMotion,
   onQuality,
@@ -42,7 +50,21 @@ function Runtime({
   onMetrics,
 }: Props & { onMetrics: (value: Metrics) => void }) {
   const controls = useRef<Controls>(null);
-  const { gl, scene, invalidate, size } = useThree();
+  const { gl, scene, invalidate, size, camera } = useThree();
+  useEffect(() => {
+    const position =
+      cameraView === "close"
+        ? [0, 1.65, 3.5]
+        : cameraView === "wide"
+          ? [0, 2.8, 7.5]
+          : [0, 2.05, 5.6];
+    camera.position.set(position[0], position[1], position[2]);
+    if (controls.current) {
+      controls.current.target.set(0, cameraView === "close" ? 1.2 : 1.05, 0.7);
+      controls.current.update();
+    }
+    invalidate();
+  }, [cameraView, camera, invalidate]);
   const motionUntil = useRef(0),
     warmUntil = useRef(0),
     dragging = useRef(false),
@@ -148,11 +170,11 @@ function Runtime({
       makeDefault
       enablePan={false}
       enableDamping={false}
-      target={[0, 1.35, -0.6]}
-      minDistance={7.5}
-      maxDistance={13}
-      minPolarAngle={0.9}
-      maxPolarAngle={1.43}
+      target={[0, 1.05, 0.7]}
+      minDistance={2.5}
+      maxDistance={9}
+      minPolarAngle={1.05}
+      maxPolarAngle={1.55}
       minAzimuthAngle={-0.48}
       maxAzimuthAngle={0.48}
       autoRotateSpeed={0.08}
@@ -213,7 +235,7 @@ export default function PalaceCanvas(props: Props) {
         frameloop={props.visible ? "demand" : "never"}
         dpr={[1, QUALITY_CONFIG[props.quality].dpr]}
         shadows={props.quality === "high" ? "soft" : false}
-        camera={{ position: [0, 4.1, 10.5], fov: 49, near: 0.1, far: 45 }}
+        camera={{ position: [0, 2.05, 5.6], fov: 37, near: 0.1, far: 45 }}
         gl={{
           antialias: props.quality !== "low",
           alpha: false,
@@ -221,11 +243,11 @@ export default function PalaceCanvas(props: Props) {
         }}
         fallback={<span>Trình duyệt không hiển thị được cảnh 3D.</span>}
       >
-        <color attach="background" args={["#d9c9aa"]} />
-        <hemisphereLight args={["#fff1d0", "#594132", 2.1]} />
+        <color attach="background" args={["#b49a78"]} />
+        <hemisphereLight args={["#f4dfbd", "#48312b", 1.8]} />
         <directionalLight
           position={[3, 7, 4]}
-          intensity={2.3}
+          intensity={2.1}
           color="#ffe1ac"
           castShadow={props.quality === "high"}
           shadow-mapSize={[512, 512]}
@@ -235,10 +257,14 @@ export default function PalaceCanvas(props: Props) {
           shadow-camera-bottom={-6}
           shadow-bias={-0.002}
         />
+        <fog attach="fog" args={["#b49a78", 9, 22]} />
+        <TextureLifetime />
         <LoadingProgress update={props.onProgress} />
         <Suspense fallback={null}>
           <PalaceRoom
             appearance={props.appearance}
+            quality={props.quality}
+            reducedMotion={props.reducedMotion}
             available={manifest.available}
             onHotspot={props.onHotspot}
           />

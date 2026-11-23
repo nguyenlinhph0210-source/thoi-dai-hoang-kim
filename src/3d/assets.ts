@@ -66,7 +66,7 @@ export const MODEL_DECODERS = {
   draco: "/models/decoders/draco/",
   ktx2: "/models/decoders/basis/",
 };
-export const SCENE_TRIANGLE_BUDGET = 100000;
+export const SCENE_TRIANGLE_BUDGET = 40000;
 export interface ModelManifest {
   available: string[];
 }

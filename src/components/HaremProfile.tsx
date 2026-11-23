@@ -16,6 +16,9 @@ import { HAREM_BALANCE as B } from "@/config/balance";
 import { cosmeticEffects } from "@/lib/cosmeticRules";
 import { parseCosmeticCommand } from "@/lib/cosmeticEngine";
 import { RANKS } from "@/lib/gameConfig";
+import { ItemIllustration } from "@/ui/Illustrations";
+import { CourtIcon, Ornament } from "@/ui/Court";
+import type { PreviewSelection } from "@/ui/appearance";
 type Pending = {
   command: CosmeticCommand;
   key: string;
@@ -24,12 +27,16 @@ type Pending = {
 };
 export default function HaremProfile({
   state,
+  preview,
+  onPreview,
   disabled,
   onPending,
   onComplete,
   children,
 }: {
   state: GameView;
+  preview: PreviewSelection | null;
+  onPreview: (value: PreviewSelection | null) => void;
   disabled: boolean;
   onPending: (value: boolean) => void;
   onComplete: () => Promise<void>;
@@ -45,6 +52,10 @@ export default function HaremProfile({
   const busy = useRef(false),
     c = state.character!,
     data = state.cosmetics;
+  const profileRoot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    profileRoot.current?.scrollIntoView({ block: "start" });
+  }, [tab]);
   const storageKey = `dnk-cosmetic-${state.account.id}`;
   function remember(value: Pending | null) {
     try {
@@ -122,6 +133,12 @@ export default function HaremProfile({
       setPending(null);
       remember(null);
       setMessage(result.message ?? "Đã sửa soạn xong.");
+      if (
+        request.command.type === "EQUIP_ITEM" ||
+        request.command.type === "SET_DECOR" ||
+        request.command.type === "UNEQUIP_ITEM"
+      )
+        onPreview(null);
       await onComplete();
     } catch (failure) {
       setError(
@@ -152,7 +169,7 @@ export default function HaremProfile({
     c.status !== "ACTIVE" || c.actionLocked || state.season.status !== "ACTIVE";
   const awaiting = disabled || sending || !!pending || unavailable;
   return (
-    <div className="harem-profile">
+    <div className="harem-profile" ref={profileRoot}>
       <nav className="profile-subnav" aria-label="Mục Hồ sơ">
         {[
           ["identity", "Thân phận"],
@@ -162,15 +179,29 @@ export default function HaremProfile({
           <button
             key={code}
             aria-pressed={tab === code}
-            onClick={() => setTab(code)}
+            onClick={() => {
+              setTab(code);
+              onPreview(null);
+            }}
           >
             {name}
           </button>
         ))}
       </nav>
       <div hidden={tab !== "identity"}>{children}</div>
-      <section className="stage-paper harem-panel" hidden={tab === "identity"}>
-        <h2>{tab === "wardrobe" ? "Thượng phục cục" : "Cung viện riêng"}</h2>
+      <section
+        className={`stage-paper harem-panel ${preview ? "is-trying" : ""}`}
+        hidden={tab === "identity"}
+      >
+        {!preview && (
+          <>
+            <h2>
+              <CourtIcon symbol={tab === "wardrobe" ? "hairpin" : "lantern"} />
+              {tab === "wardrobe" ? "Thượng phục cục" : "Cung viện riêng"}
+            </h2>
+            <Ornament />
+          </>
+        )}
         {unavailable && c.branch === "HAREM" && (
           <p>
             Nhân vật chưa thể sửa soạn. Nếu đang trọng bệnh, hãy điều trị trước.
@@ -184,40 +215,121 @@ export default function HaremProfile({
           </p>
         ) : (
           <>
+            {preview &&
+              (() => {
+                const row = (
+                  preview.kind === "ITEM" ? HAREM_ITEMS : CHAMBER_DECOR
+                ).find((i) => i.code === preview.code);
+                if (!row) return null;
+                const owned =
+                  preview.kind === "ITEM"
+                    ? data.ownedItemCodes.includes(row.code)
+                    : ("style" in row && row.style === 0) ||
+                      data.chamber.ownedDecorCodes.includes(row.code);
+                const reason = owned
+                  ? row.minTier > tier
+                    ? "Chưa đủ phẩm"
+                    : null
+                  : locked(row.price, row.minTier);
+                return (
+                  <div className="tryon-purchase">
+                    <strong>Đang thử · {row.name}</strong>
+                    <button
+                      disabled={awaiting || !!reason}
+                      onClick={() =>
+                        void submit({
+                          type:
+                            preview.kind === "ITEM"
+                              ? owned
+                                ? "EQUIP_ITEM"
+                                : "BUY_ITEM"
+                              : owned
+                                ? "SET_DECOR"
+                                : "BUY_DECOR",
+                          code: row.code,
+                        })
+                      }
+                    >
+                      {owned
+                        ? preview.kind === "ITEM"
+                          ? "Mặc món đang thử"
+                          : "Bày kiểu đang thử"
+                        : `Mua món đang thử · ${row.price} lượng`}
+                    </button>
+                    {reason && <small>{reason}</small>}
+                  </div>
+                );
+              })()}
             <p>
               Ngân lượng: <strong>{c.characterSilver}</strong> lượng · Mua hôm
               nay {data.purchasesToday}/{B.dailyPurchaseCap}
             </p>
-            <p className="harem-effects" data-testid="cosmetic-effects">
-              Diện kiến +{effects.audienceFavPct}% / trần{B.equipmentCapPct}% ·
-              Nghi thái +{effects.etiquetteGainPct}% / trần{B.equipmentCapPct}%
-              · Nghỉ ngơi +{effects.restHpPct}% · Giao thiệp +
-              {effects.socializeRepPct}%
-            </p>
-            <small>
-              Hiệu ứng chỉ tăng thưởng hành động; không cộng vào chỉ số gốc hoặc
-              điều kiện thăng phẩm.
-            </small>
+            <details className="harem-effect-details">
+              <summary>Hiệu ứng đang áp dụng</summary>
+              <p className="harem-effects" data-testid="cosmetic-effects">
+                Diện kiến +{effects.audienceFavPct}% / trần{B.equipmentCapPct}%
+                · Nghi thái +{effects.etiquetteGainPct}% / trần
+                {B.equipmentCapPct}% · Nghỉ ngơi +{effects.restHpPct}% · Giao
+                thiệp +{effects.socializeRepPct}%
+              </p>
+              <small>
+                Hiệu ứng chỉ tăng thưởng hành động; không cộng vào chỉ số gốc
+                hoặc điều kiện thăng phẩm.
+              </small>
+            </details>
             {tab === "wardrobe" ? (
               <>
-                <h3>Tủ đồ</h3>
-                {EQUIPMENT_SLOTS.map((s) => (
-                  <div className="equipment-slot" key={s}>
-                    <span>
-                      {SLOT_LABELS[s]}:{" "}
-                      {HAREM_ITEMS.find((i) => i.code === data.equipment[s])
-                        ?.name ?? "Chưa trang bị"}
-                    </span>
-                    <button
-                      disabled={awaiting || !data.equipment[s]}
-                      onClick={() =>
-                        void submit({ type: "UNEQUIP_ITEM", slot: s })
-                      }
-                    >
-                      Tháo {SLOT_LABELS[s].toLowerCase()}
-                    </button>
-                  </div>
-                ))}
+                <details
+                  className="wardrobe-inventory"
+                  open={Object.keys(data.equipment).length > 0}
+                >
+                  <summary>
+                    Tủ đồ · {Object.keys(data.equipment).length}/3 ô đang mặc
+                  </summary>
+                  {EQUIPMENT_SLOTS.map((s) => (
+                    <div className="equipment-slot" key={s}>
+                      {(() => {
+                        const item = HAREM_ITEMS.find(
+                          (i) => i.code === data.equipment[s],
+                        );
+                        return item ? (
+                          <button
+                            className="equipped-art"
+                            aria-label={`Thử ${item.name}`}
+                            onClick={() =>
+                              onPreview({ kind: "ITEM", code: item.code })
+                            }
+                          >
+                            <ItemIllustration item={item} />
+                          </button>
+                        ) : (
+                          <CourtIcon
+                            symbol={
+                              s === "OUTFIT"
+                                ? "fan"
+                                : s === "HEAD"
+                                  ? "hairpin"
+                                  : "jade"
+                            }
+                          />
+                        );
+                      })()}
+                      <span>
+                        {SLOT_LABELS[s]}:{" "}
+                        {HAREM_ITEMS.find((i) => i.code === data.equipment[s])
+                          ?.name ?? "Chưa trang bị"}
+                      </span>
+                      <button
+                        disabled={awaiting || !data.equipment[s]}
+                        onClick={() =>
+                          void submit({ type: "UNEQUIP_ITEM", slot: s })
+                        }
+                      >
+                        Tháo {SLOT_LABELS[s].toLowerCase()}
+                      </button>
+                    </div>
+                  ))}
+                </details>
                 <div className="harem-filters">
                   <label>
                     Ô trang bị
@@ -269,10 +381,16 @@ export default function HaremProfile({
                         key={item.code}
                         data-testid={`item-${item.code}`}
                       >
-                        <span
-                          className="item-swatch"
-                          style={{ background: item.visual.color }}
-                        />
+                        <button
+                          className="art-preview"
+                          aria-label={`Thử ${item.name}`}
+                          onClick={() =>
+                            onPreview({ kind: "ITEM", code: item.code })
+                          }
+                        >
+                          <ItemIllustration item={item} />
+                          <span>Thử đồ</span>
+                        </button>
                         <h4>{item.name}</h4>
                         <small>
                           {TIER_LABELS[item.minTier]} · {item.price} lượng
@@ -357,6 +475,16 @@ export default function HaremProfile({
                           : locked(d.price, d.minTier);
                       return (
                         <div key={d.code} data-testid={`decor-${d.code}`}>
+                          <button
+                            className="art-preview"
+                            aria-label={`Xem thử ${d.name}`}
+                            onClick={() =>
+                              onPreview({ kind: "DECOR", code: d.code })
+                            }
+                          >
+                            <ItemIllustration item={d} />
+                            <span>Xem trong viện</span>
+                          </button>
                           <strong>{d.name}</strong>
                           <small>{d.description}</small>
                           <button
