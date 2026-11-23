@@ -28,6 +28,8 @@ import { publicPendingEvents } from "./eventEngine";
 export function gameView(state: RuntimeState): GameView {
   return {
     ...publicState(state),
+    cosmetics:
+      state.character?.branch === "HAREM" ? (state.cosmetics ?? null) : null,
     pendingEvents: publicPendingEvents(state),
     season: state.season,
     serverNow: state.serverNow,

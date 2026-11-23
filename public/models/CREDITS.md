@@ -7,6 +7,7 @@ Phần hình khối 3D này được cung cấp theo CC0-1.0; không bao gồm t
 | Tên mô hình | Nguồn | Tác giả | Giấy phép | Link | Ngày |
 | --- | --- | --- | --- | --- | --- |
 | Procedural PalaceRoom | Tự tạo trong code | Dự án ĐẠI NỘI KÝ | CC0-1.0 | [Mã nguồn](../../src/3d/PalaceRoom.tsx) · [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | 2026-11-22 |
+| Procedural HaremFigure và bày biện H1 | Tự tạo trong code | Dự án ĐẠI NỘI KÝ | CC0-1.0 | [Hình nhân](../../src/3d/HaremFigure.tsx) · [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | 2026-11-23 |
 
 Khi thêm GLB, thêm một dòng riêng, cột đầu phải là tên file chính xác (ví dụ screen.glb).
 Nguồn/tác giả/giấy phép/link/ngày không được để trống. Chỉ chấp nhận tự tạo hoặc CC0 đã xác minh.

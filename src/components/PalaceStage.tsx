@@ -16,8 +16,16 @@ import {
 } from "@/3d/quality";
 
 // No three/fiber/drei import anywhere above this conditional, client-only boundary.
+import type { CosmeticAppearance } from "@/types/cosmetics";
+import { DECOR_LABELS } from "@/content/harem";
 const PalaceCanvas = dynamic(() => import("@/3d/PalaceCanvas"), { ssr: false });
-function PalaceStage({ active }: { active: boolean }) {
+function PalaceStage({
+  active,
+  appearance,
+}: {
+  active: boolean;
+  appearance?: CosmeticAppearance;
+}) {
   const root = useRef<HTMLElement>(null);
   const [preference, setPreference] =
     useState<GraphicsPreference>(DEFAULT_GRAPHICS);
@@ -163,6 +171,7 @@ function PalaceStage({ active }: { active: boolean }) {
         {initialized && mode === "3d" && (
           <SceneErrorBoundary key={generation} onFailure={failure}>
             <PalaceCanvas
+              appearance={appearance}
               quality={quality as Quality}
               visible={visible}
               reducedMotion={reducedMotion}
@@ -224,6 +233,39 @@ function PalaceStage({ active }: { active: boolean }) {
           </small>
         </details>
       </div>
+      {mode === "2d" && appearance && (
+        <div className="palace-cosmetic-card" data-testid="cosmetic-2d">
+          <strong>{appearance.name}</strong>
+          <span>Cung viện cấp {appearance.level}</span>
+          <small>
+            {appearance.outfitName ?? "Y phục mộc"}
+            {appearance.headName ? ` · ${appearance.headName}` : ""}
+            {appearance.accessoryName ? ` · ${appearance.accessoryName}` : ""}
+          </small>
+          <div
+            className="figure-swatch"
+            style={{
+              background: appearance.outfit?.color ?? "#9a6556",
+              borderColor: appearance.outfit?.accent ?? "#c6ac76",
+            }}
+          />{" "}
+          <small>
+            {appearance.outfit
+              ? `Y phục · ${appearance.outfit.pattern === "BORDER" ? "Viền" : appearance.outfit.pattern === "DIAMOND" ? "Hình thoi" : "Đường vân"}`
+              : "Y phục mộc"}
+            {appearance.headColor ? " · Có trâm cài" : ""}
+            {appearance.accessoryColor ? " · Có trang sức" : ""}
+          </small>
+          <ul>
+            {Object.entries(appearance.decor).map(([slot, d]) => (
+              <li key={slot}>
+                {DECOR_LABELS[slot as keyof typeof DECOR_LABELS]} ·{" "}
+                {["Mộc", "Viền son", "Vân ngọc"][d.style]}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {(reason || caption) && (
         <p className="palace-caption" role="status">
           {caption || reason}

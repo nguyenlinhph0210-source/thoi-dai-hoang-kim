@@ -33,7 +33,15 @@ import {
 } from "@/lib/eventEngine";
 import type { EventData, ResolveEventInput } from "@/types/events";
 import { logSupabaseError } from "@/lib/supabaseDiagnostics";
+import type { CosmeticCommand } from "@/types/cosmetics";
+import { emptyCosmetics } from "@/lib/cosmeticRules";
+import {
+  processCosmeticCommand,
+  parseCosmeticCommand,
+} from "@/lib/cosmeticEngine";
 export class InMemoryGameRepository implements GameRepository {
+  private cosmeticDays = new Map<string, number>();
+  private cosmeticCommands = new Map<string, string>();
   private eventData: EventData = emptyEventData();
   private seatData: Pick<
     SeatWorld,
@@ -123,6 +131,15 @@ export class InMemoryGameRepository implements GameRepository {
     const day = utc7Date(state.serverNow);
     state.meritUsedToday = this.meritDays.get(id)?.get(day) ?? 0;
     state.usage = structuredClone(this.usageDays.get(id)?.get(day) ?? {});
+    if (state.character?.branch === "HAREM") {
+      if (
+        !state.cosmetics ||
+        state.cosmetics.characterId !== state.character.id
+      )
+        state.cosmetics = emptyCosmetics(state.character.id);
+      state.cosmetics.purchasesToday =
+        this.cosmeticDays.get(`${id}:${day}`) ?? 0;
+    }
     if (state.character && state.character.confirmedAt)
       state.character.age = getCharacterAge(
         state.character.startAge,
@@ -401,6 +418,63 @@ export class InMemoryGameRepository implements GameRepository {
       if (code !== "RESOLVE_EVENT")
         this.journal.set(id, [log, ...(this.journal.get(id) ?? [])]);
       return structuredClone(result);
+    });
+  }
+  async cosmeticAction(
+    id: string,
+    command: CosmeticCommand,
+    revision: number,
+    key: string,
+  ): Promise<ActionResult> {
+    return this.serial(id, () => {
+      this.tick();
+      const previous = this.requests.get(id)?.get(key),
+        payload = JSON.stringify(parseCosmeticCommand(command));
+      if (previous) {
+        if (
+          previous.log.actionCode !== "COSMETIC" ||
+          this.cosmeticCommands.get(`${id}:${key}`) !== payload
+        )
+          throw new GameRuleError("Mã yêu cầu đã dùng cho thao tác khác.");
+        return structuredClone(previous);
+      }
+      const state = this.refresh(id);
+      if (state.revision !== revision)
+        throw new GameRuleError("Dữ liệu đã thay đổi. Hãy đồng bộ lại.");
+      const computed = processCosmeticCommand(state, command, randomUUID());
+      this.states.set(id, computed.state);
+      this.cosmeticDays.set(
+        `${id}:${utc7Date(state.serverNow)}`,
+        computed.state.cosmetics!.purchasesToday,
+      );
+      if (!this.requests.has(id)) this.requests.set(id, new Map());
+      this.requests.get(id)!.set(key, structuredClone(computed.result));
+      this.cosmeticCommands.set(`${id}:${key}`, payload);
+      this.journal.set(id, [
+        computed.result.log,
+        ...(this.journal.get(id) ?? []),
+      ]);
+      return structuredClone(computed.result);
+    });
+  }
+  async clearCharacterCosmetics(characterId: string): Promise<void> {
+    return this.serial("world", () => {
+      const state = [...this.states.values()].find(
+        (s) => s.character?.id === characterId,
+      );
+      if (!state) throw new GameRuleError("Không tìm thấy nhân vật.");
+      const d = state.cosmetics;
+      if (
+        !d ||
+        (!d.ownedItemCodes.length &&
+          !Object.keys(d.equipment).length &&
+          d.chamber.level === 1 &&
+          !d.chamber.ownedDecorCodes.length &&
+          !d.titles.length)
+      )
+        return;
+      state.cosmetics = emptyCosmetics(characterId);
+      state.revision++;
     });
   }
   async logs(id: string, page: number) {

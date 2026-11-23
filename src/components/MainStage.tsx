@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   ChevronLeft,
@@ -28,6 +28,9 @@ import SeatBoard from "./SeatBoard";
 import PromotionProgress from "./PromotionProgress";
 import PalaceIllustration from "./PalaceIllustration";
 import PalaceStage from "./PalaceStage";
+import HaremProfile from "./HaremProfile";
+import { titledRank, cosmeticAppearance } from "@/lib/cosmeticRules";
+import { HONORIFICS } from "@/content/harem";
 const tabs = [
   { key: "profile", name: "Hồ sơ", icon: UserRound },
   { key: "stage", name: "Sân khấu", icon: Crown },
@@ -53,6 +56,7 @@ export default function MainStage({
     [message, setMessage] = useState(""),
     [sending, setSending] = useState(false),
     [loading, setLoading] = useState(false);
+  const [cosmeticPending, setCosmeticPending] = useState(false);
   const [eventResult, setEventResult] = useState<PublicActionLog | null>(null);
   const [retry, setRetry] = useState<
     ({ code: ActionCode; key: string } & Partial<ResolveEventInput>) | null
@@ -211,8 +215,12 @@ export default function MainStage({
     refresh,
   ]);
   const c = state.character!;
+  const appearance = useMemo(
+    () => cosmeticAppearance(c.rankId, state.cosmetics),
+    [c.rankId, state.cosmetics],
+  );
   async function act(code: ActionCode, choice?: ResolveEventInput) {
-    if (busy.current) return;
+    if (busy.current || cosmeticPending) return;
     const request = requestRef.current ?? {
       code,
       key: crypto.randomUUID(),
@@ -269,60 +277,67 @@ export default function MainStage({
     }
   }
   const profile = (
-    <section className="stage-paper profile-panel">
-      <div className="section-caption">
-        <UserRound size={16} />
-        <h2>Hồ sơ thân phận</h2>
-      </div>
-      <div className="profile-seal">
-        <Crown size={30} />
-      </div>
-      <h3>{BRANCH_INFO[c.branch].name}</h3>
-      <p>
-        {RANKS[c.rankId]?.name ?? "Đã nhập triều"} · {c.age} tuổi
-      </p>
-      <p className="destiny-points" data-testid="destiny-points">
-        Điểm Thiên Mệnh <strong>{state.account.destinyPoints}</strong>
-      </p>
-      <div className="profile-stats">
-        {statKeys.map((key) => (
-          <div key={key}>
-            <span>{statLabel(key, c.branch)}</span>
-            <strong data-testid={`profile-${key}`}>{c[key]}</strong>
-          </div>
-        ))}
-      </div>
-      <PromotionProgress
-        progress={state.promotion}
-        branch={c.branch}
-        lockReason={state.actionLocks.EXAM}
-        pending={sending || !!retry}
-        onExam={() => void act("EXAM")}
-        application={state.seatApplication ?? null}
-        applyLock={state.actionLocks.APPLY}
-        onApply={() => void act("APPLY")}
-        onWithdraw={() => void act("WITHDRAW")}
-        nextRoundCountdown={
-          state.nextSeatRoundAt
-            ? duration(state.nextSeatRoundAt - now)
-            : "Đang đồng bộ…"
-        }
-      />
-      {state.suspicionWarning && (
-        <p className="suspicion-warning" role="status">
-          <Shield size={16} /> Tì vết đã nhiều. Hãy cẩn trọng trước những ánh
-          nhìn trong triều.
+    <HaremProfile
+      state={state}
+      disabled={sending || !!retry}
+      onPending={setCosmeticPending}
+      onComplete={() => refresh()}
+    >
+      <section className="stage-paper profile-panel">
+        <div className="section-caption">
+          <UserRound size={16} />
+          <h2>Hồ sơ thân phận</h2>
+        </div>
+        <div className="profile-seal">
+          <Crown size={30} />
+        </div>
+        <h3>{BRANCH_INFO[c.branch].name}</h3>
+        <p>
+          {titledRank(c.rankId, state.cosmetics)} · {c.age} tuổi
         </p>
-      )}
-      {c.status === "SEVERELY_ILL" && (
-        <p className="suspicion-warning">
-          Đang trọng bệnh · còn {c.treatmentsRemaining} lần điều trị.
+        <p className="destiny-points" data-testid="destiny-points">
+          Điểm Thiên Mệnh <strong>{state.account.destinyPoints}</strong>
         </p>
-      )}
-      <p className="stage-muted">
-        Nghi Kỵ được giữ kín. Mọi thay đổi do máy chủ xác nhận.
-      </p>
-    </section>
+        <div className="profile-stats">
+          {statKeys.map((key) => (
+            <div key={key}>
+              <span>{statLabel(key, c.branch)}</span>
+              <strong data-testid={`profile-${key}`}>{c[key]}</strong>
+            </div>
+          ))}
+        </div>
+        <PromotionProgress
+          progress={state.promotion}
+          branch={c.branch}
+          lockReason={state.actionLocks.EXAM}
+          pending={sending || !!retry || cosmeticPending}
+          onExam={() => void act("EXAM")}
+          application={state.seatApplication ?? null}
+          applyLock={state.actionLocks.APPLY}
+          onApply={() => void act("APPLY")}
+          onWithdraw={() => void act("WITHDRAW")}
+          nextRoundCountdown={
+            state.nextSeatRoundAt
+              ? duration(state.nextSeatRoundAt - now)
+              : "Đang đồng bộ…"
+          }
+        />
+        {state.suspicionWarning && (
+          <p className="suspicion-warning" role="status">
+            <Shield size={16} /> Tì vết đã nhiều. Hãy cẩn trọng trước những ánh
+            nhìn trong triều.
+          </p>
+        )}
+        {c.status === "SEVERELY_ILL" && (
+          <p className="suspicion-warning">
+            Đang trọng bệnh · còn {c.treatmentsRemaining} lần điều trị.
+          </p>
+        )}
+        <p className="stage-muted">
+          Nghi Kỵ được giữ kín. Mọi thay đổi do máy chủ xác nhận.
+        </p>
+      </section>
+    </HaremProfile>
   );
   const logPanel = (
     <section className="stage-paper journal-panel">
@@ -343,12 +358,14 @@ export default function MainStage({
             <li key={log.id}>
               <span className="journal-dot" />
               <strong>
-                {log.event
-                  ? log.event.title
-                  : log.promotion
-                    ? `${log.promotion.conversion ? "Chuyển nhánh" : "Thăng phẩm"} · ${RANKS[log.promotion.toRankId]?.name}`
-                    : (ACTIONS[log.actionCode].branchNames?.[c.branch] ??
-                      ACTIONS[log.actionCode].name)}
+                {log.cosmetic
+                  ? log.cosmetic.description
+                  : log.event
+                    ? log.event.title
+                    : log.promotion
+                      ? `${log.promotion.conversion ? "Chuyển nhánh" : "Thăng phẩm"} · ${RANKS[log.promotion.toRankId]?.name}`
+                      : (ACTIONS[log.actionCode].branchNames?.[c.branch] ??
+                        ACTIONS[log.actionCode].name)}
               </strong>
               <small>
                 Năm {START_REIGN_YEAR + log.worldTime.currentGameYear - 1},
@@ -363,6 +380,16 @@ export default function MainStage({
                   {log.event.destinyAwarded
                     ? ` +${log.event.destinyAwarded} Điểm Thiên Mệnh.`
                     : ""}
+                </p>
+              )}
+              {log.titleGrant && (
+                <p>
+                  Ban phong:{" "}
+                  {
+                    HONORIFICS.find((t) => t.code === log.titleGrant?.titleCode)
+                      ?.name
+                  }{" "}
+                  {RANKS[log.titleGrant.rankId]?.name}
                 </p>
               )}
               {log.exam && (
@@ -502,6 +529,14 @@ export default function MainStage({
             </button>
           </div>
         )}
+        {cosmeticPending && (
+          <div className="stage-notice">
+            Một thao tác Hậu cung đang chờ xác nhận.{" "}
+            <button onClick={() => setTab("profile")}>
+              Mở Hồ sơ để thử lại
+            </button>
+          </div>
+        )}
         <div className="stage-columns">
           <div
             className={`mobile-pane ${tab === "profile" ? "pane-active" : ""}`}
@@ -512,7 +547,7 @@ export default function MainStage({
             className={`stage-paper stage-center mobile-pane ${tab === "stage" ? "pane-active" : ""}`}
           >
             {c.branch === "HAREM" ? (
-              <PalaceStage active={tab === "stage"} />
+              <PalaceStage active={tab === "stage"} appearance={appearance} />
             ) : (
               <div className="stage-scene">
                 <PalaceIllustration />
@@ -524,7 +559,7 @@ export default function MainStage({
             <EventCards
               events={state.pendingEvents ?? []}
               serverNow={now}
-              pending={sending || !!retry}
+              pending={sending || !!retry || cosmeticPending}
               onChoose={(choice) => void act("RESOLVE_EVENT", choice)}
             />
             <div className="section-caption">
@@ -535,9 +570,13 @@ export default function MainStage({
               {Object.values(ACTIONS)
                 .filter(
                   (a) =>
-                    !["EXAM", "APPLY", "WITHDRAW", "RESOLVE_EVENT"].includes(
-                      a.code,
-                    ),
+                    ![
+                      "EXAM",
+                      "APPLY",
+                      "WITHDRAW",
+                      "RESOLVE_EVENT",
+                      "COSMETIC",
+                    ].includes(a.code),
                 )
                 .map((a) => {
                   const reason = state.actionLocks[a.code];
@@ -561,7 +600,9 @@ export default function MainStage({
                       <button
                         className="action-button"
                         data-testid={`action-${a.code}`}
-                        disabled={sending || !!retry || !!reason}
+                        disabled={
+                          sending || !!retry || cosmeticPending || !!reason
+                        }
                         onClick={() => void act(a.code)}
                       >
                         {sending && requestRef.current?.code === a.code ? (
@@ -590,6 +631,7 @@ export default function MainStage({
                 <h2>Quan chế</h2>
               </div>
               <SeatBoard
+                ownTitle={titledRank(c.rankId, state.cosmetics)}
                 rows={state.seatBoard ?? []}
                 branch={c.branch}
                 currentRankId={c.rankId}

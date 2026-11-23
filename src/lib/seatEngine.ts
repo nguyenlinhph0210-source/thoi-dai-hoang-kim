@@ -33,6 +33,7 @@ import {
 import { processAction, statsOf } from "./actionProcessor";
 import { getRiskModifiers } from "./statEngine";
 import { getWorldTime } from "./worldClock";
+import { grantPromotionTitle } from "./cosmeticRules";
 
 export interface SeatEngineOptions {
   random?: RandomSource;
@@ -254,6 +255,8 @@ function promote(
   app.status = "PROMOTED";
   app.reason = null;
   const log = systemLog(state, before, at, id());
+  const title = grantPromotionTitle(state, rank.id, at, options.random);
+  if (title) log.titleGrant = title;
   world.history.push({
     id: log.id,
     accountId: state.account.id,

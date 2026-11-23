@@ -15,6 +15,13 @@ export interface ActionDefinition {
   dailyCap: number;
 }
 export const ACTIONS: Record<ActionCode, ActionDefinition> = {
+  COSMETIC: {
+    code: "COSMETIC",
+    name: "Thượng phục và cung viện",
+    description: "Sửa soạn y phục, bày biện cung viện.",
+    type: "NORMAL",
+    ...ACTION_BALANCE.COSMETIC,
+  },
   RESOLVE_EVENT: {
     code: "RESOLVE_EVENT",
     name: "Giải quyết sự kiện",

@@ -8,6 +8,7 @@ import type { ActionCode } from "@/config/actions";
 import type { WorldTime } from "@/lib/worldClock";
 import type { getRiskModifiers } from "@/lib/statEngine";
 export interface RuntimeState extends SetupState {
+  cosmetics?: import("./cosmetics").CharacterCosmetics | null;
   season: Season;
   serverNow: number;
   usage: Partial<Record<ActionCode, number>>;
@@ -29,6 +30,7 @@ export interface ActionLog {
   apSpent: number;
   apAfter: number;
   modifiers: ReturnType<typeof getRiskModifiers> & {
+    cosmeticEffects?: import("./cosmetics").CosmeticEffects;
     fatigueMultiplier: number;
     resonanceMultiplier: number;
   };
@@ -43,6 +45,11 @@ export interface ActionLog {
     targetRankId: string;
     gameDay: number;
   };
+  cosmetic?: {
+    command: import("./cosmetics").CosmeticCommand;
+    description: string;
+  };
+  titleGrant?: import("./cosmetics").TitleGrant;
 }
 export interface ActionResult {
   log: ActionLog;
@@ -54,6 +61,7 @@ export type PublicActionLog = Omit<
   "accountId" | "before" | "after"
 > & { before: VisibleStats; after: VisibleStats };
 export interface GameView extends PublicSetupState {
+  cosmetics?: import("./cosmetics").CharacterCosmetics | null;
   season: Season;
   serverNow: number;
   usage: Partial<Record<ActionCode, number>>;
@@ -66,8 +74,7 @@ export interface GameView extends PublicSetupState {
   suspicionWarning: boolean;
   actionLocks: Record<ActionCode, string | null>;
   promotion:
-    | import("@/lib/promotionEligibility").PublicPromotionProgress
-    | null;
+    import("@/lib/promotionEligibility").PublicPromotionProgress | null;
 }
 export interface LogPage {
   logs: PublicActionLog[];
