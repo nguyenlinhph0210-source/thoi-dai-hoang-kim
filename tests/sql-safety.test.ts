@@ -70,3 +70,36 @@ test("every table introduced in 0007 enables RLS and revokes raw client reads", 
     );
   }
 });
+
+test("every H1 table enables RLS immediately and revokes all raw client access", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const sql = (
+    await readFile(
+      new URL(
+        "../supabase/migrations/0008_harem_cosmetics.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    )
+  ).replace(/--[^\n]*/g, "");
+  const tables = [
+    ...sql.matchAll(/create\s+table\s+if\s+not\s+exists\s+public\.(\w+)/gi),
+  ].map((m) => m[1]);
+  assert.equal(tables.length, 5);
+  for (const table of tables) {
+    assert.match(
+      sql,
+      new RegExp(
+        `alter\\s+table\\s+public\\.${table}\\s+enable\\s+row\\s+level\\s+security`,
+        "i",
+      ),
+    );
+    assert.match(
+      sql,
+      new RegExp(
+        `revoke\\s+all\\s+on\\s+public\\.${table}\\s+from\\s+anon,\\s*authenticated`,
+        "i",
+      ),
+    );
+  }
+});

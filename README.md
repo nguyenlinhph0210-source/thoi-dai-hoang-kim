@@ -1,4 +1,4 @@
-# ĐẠI NỘI KÝ — G1 · Cung viện 3D (prototype)
+# ĐẠI NỘI KÝ — H1 · Y phục, cung viện và phong hiệu
 
 Next.js App Router, TypeScript strict, Tailwind, Lucide và Supabase. Quy tắc: [AGENTS.md](AGENTS.md). Tiến độ, giả định, TEMP và checklist: [docs/PROGRESS.md](docs/PROGRESS.md).
 
@@ -20,6 +20,33 @@ npm run test:e2e
 Thiếu toàn bộ cấu hình Supabase thì dùng `InMemoryGameRepository`: mỗi tài khoản có email/mật khẩu/phiên riêng, không có người dùng demo chung. Dữ liệu mất khi restart; chỉ dùng một process cho local/test. Không dùng InMemory cho triển khai nhiều máy chủ. Một phần cấu hình Supabase bị thiếu sẽ báo lỗi, không âm thầm chuyển sang local. Local production HTTP cần `COOKIE_SECURE=false`; HTTPS mặc định Secure.
 
 Playwright chạy production build tại cổng 3100 với InMemory. Dùng `/usr/bin/chromium`, hoặc cài `npx playwright install chromium`/đặt `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Không chạy dev server đồng thời với build trong cùng `.next`.
+
+## Hậu cung đợt 1 (H1)
+
+Hồ sơ có thanh phụ **Thân phận | Y phục | Cung viện**, không thêm tab mobile. Nhánh HAREM mua/mặc ba ô
+OUTFIT/HEAD/ACCESSORY tại Thượng phục cục, nâng cung viện1–5 và chọn sáu ô bày biện. Nhánh khác thấy Sắp ra mắt.
+Danh mục trong `src/content/harem.ts`:12 y phục/10 trâm/8 trang sức,18 kiểu trang trí,5 cấp viện và9 phong hiệu,
+tất cả SAMPLE_DRAFT/fictional. Số TEMP ở `HAREM_BALANCE`; bảng ngày kiếm bạc và giả định trong PROGRESS.
+
+Mặc/tháo **không cộng chỉ số gốc**, không cộng ngưỡng thăng phẩm. Chỉ thưởng AUDIENCE/ETIQUETTE nhận thêm
+hệ số trang bị (mỗi loại trần25%), REST/SOCIALIZE nhận hệ số cung viện (trần40%/20%). Engine giữ cộng hưởng,
+suy kiệt, floor cuối và clamp; ghi `modifiers.cosmeticEffects`. Trang trí và phong hiệu không có chỉ số.
+
+Mua bằng ngân lượng, không AP, tối đa10 lần/tài khoản/ngày UTC+7 gồm cả decor; nâng cấp/mặc/bày không tính
+lượt mua. API chỉ nhận mã/ô/lệnh/revision/UUID; server tự tra giá/tầng/ô từ cấu hình. Server dựng proposal,
+RPC service_role khóa thế giới/account/character, kiểm world/account revision, ngày/phẩm/số dư/sở hữu/cap,
+trừ bạc và ghi ledger/nhật ký trong một transaction. Retry giữ nguyên lệnh/revision/UUID, không thu hai lần.
+Không quay sự kiện/cộng merit vì sửa soạn. Đổi trang bị cũng đổi world revision để không chốt thưởng hành động từ snapshot cũ.
+
+Khi thăng vào phẩm mốc, engine ban phong trong cùng `commit_seat_world`; mất bước ban phong hoặc ghi lỗi thì
+rollback cả rank/AP. Bộ mốc và mã hợp lệ do server gửi từ config vào RPC, không có bản giá/mốc TEMP trùng trong SQL.
+Không trùng chữ hiện tại của chính nhân vật; giữ lịch sử; không ban bù mốc trước H1. Danh xưng xuất hiện trong
+Hồ sơ/Quan chế của chính mình/Nhật ký/bảng tên cảnh. Clear nội bộ dùng cho Chặng5, không endpoint tử vong.
+
+0008 thêm năm bảng có RLS, client không đọc raw/không gọi RPC nhạy cảm. Không sửa migration cũ, không thư viện/env mới.
+Đọc lỗi H1 giữ hồ sơ và cảnh báo nhẹ; ghi vẫn nghiêm ngặt. `clearCharacterCosmetics` xóa đồ/viện/phong hiệu kiếp,
+giữ ledger/nhật ký/hạn mua tài khoản. G1 hiển thị hình nhân áo kín bằng khối, màu/hoa văn/trâm/điểm trang sức và
+bày biện; 2D có thẻ tương đương. Chưa G2, nhiều cảnh, NPC hay hệ thống thỉnh an mới.
 
 ## Cung viện 3D (G1)
 
@@ -63,8 +90,9 @@ Thứ tự trong SQL Editor:
 5. [0005_seats_and_promotion.sql](supabase/migrations/0005_seats_and_promotion.sql).
 6. [0006_fix_safeupdate.sql](supabase/migrations/0006_fix_safeupdate.sql).
 7. [0007_personal_events.sql](supabase/migrations/0007_personal_events.sql).
+8. [0008_harem_cosmetics.sql](supabase/migrations/0008_harem_cosmetics.sql).
 
-**Đã ở 3B và chạy bản sửa 0006: chỉ chạy 0007 trước code này. Chưa có 0006 thì chạy 0006 rồi 0007; ở 3A chạy 0005 → 0006 → 0007.** 0005 có begin/commit và chạy lại an toàn; không reset AP, mùa, đơn, ghế hoặc R đã khóa. Giải phóng ghế khởi đầu còn sót từ M1 theo quyết định 3B; giữ lịch sử các ghế khác. Không chạy lại migration phiên bản cũ sau migration mới vì sẽ hạ phiên bản RPC; đặc biệt không chạy lại 0005 sau 0006 vì sẽ khôi phục trigger lỗi. Không sửa schema.sql hay migration 0002–0006.
+**Đã ở 4A/G1 (qua 0007): chỉ chạy 0008 trước code H1. Còn ở 3B + 0006 thì chạy 0007 → 0008; ở 3A chạy 0005 → 0006 → 0007 → 0008.** 0005 có begin/commit và chạy lại an toàn; không reset AP, mùa, đơn, ghế hoặc R đã khóa. Giải phóng ghế khởi đầu còn sót từ M1 theo quyết định 3B; giữ lịch sử các ghế khác. Không chạy lại migration phiên bản cũ sau migration mới vì sẽ hạ phiên bản RPC; đặc biệt không chạy lại 0005 sau 0006 vì sẽ khôi phục trigger lỗi. Không sửa schema.sql hay migration 0002–0007; không chạy lại bản cũ sau 0008.
 
 **chưa kiểm chứng trên Supabase thật**: môi trường này chưa có cấu hình dịch vụ. PGlite chạy migration/RPC/RLS với auth/role stub; không thay thế Supabase Auth hay kiểm thử khóa trên PostgreSQL nhiều kết nối. Làm checklist trong PROGRESS trước khi triển khai công khai.
 

@@ -458,6 +458,18 @@ Tử vong là vĩnh viễn đối với nhân vật hiện tại, nhưng tài kh
 
 ---
 
+## Hậu cung đợt 1 (H1)
+
+- Chỉ HAREM; danh mục có branches, fictional:true, SAMPLE_DRAFT trong `src/content/harem.ts`. Nhánh khác thấy “Sắp ra mắt”. Không NPC, thỉnh an mới, thuộc hạ, yến tiệc, tặng quà hay cửa hàng tiền thật.
+- Ba ô OUTFIT/HEAD/ACCESSORY, mỗi ô một món đã sở hữu; chỉ mua/mặc khi minTier<=tầng phẩm hiện tại. Không có vượt lễ chế. Giữ nguyên chỉ số gốc, dùng chỉ số gốc để xét thăng phẩm; không cộng chỉ số khi mặc/tháo.
+- Trang bị cộng audienceFavPct/etiquetteGainPct, mỗi loại tối đa25%; chỉ áp vào thưởng AUDIENCE/ETIQUETTE tương ứng. Cộng hưởng nghi thái → hệ số trang bị → suy kiệt, floor một lần ở tăng cuối, rồi clamp. Không giảm mức trừ. Ghi hiệu ứng vào modifiers.cosmeticEffects. Sự kiện AUDIENCE kiểu4A chưa hưởng trang bị (TODO(spec)).
+- Mua bằng characterSilver, không AP; tối đa10 lần/tài khoản/ngày UTC+7, tính cả món bày biện. Một mã/một nhân vật chỉ mua một lần. Giá từ cấu hình server, không tin giá/hiệu ứng/nhánh phía client. Bảng giá/hiệu ứng TEMP gom HAREM_BALANCE, không đổi WORK hay áp chờ24h để ép giá Sơ cấp.
+- Cung viện1–5, giá nâng cấp2/3/4/5 =80/200/500/1200, tầng tối thiểu1/2/3/4 (TEMP). Mỗi cấp sau1 tăng REST10% (trần40%) và SOCIALIZE5% (trần20%). Sáu ô SCREEN/LANTERN/TABLE/PLANT/PAINTING/INCENSE, mỗi ô3 kiểu; mặc định miễn phí, hai kiểu mua/đạt phẩm rồi bày. Trang trí thuần thẩm mỹ.
+- Phong hiệu Mẫn/Như/Kính/Lệnh/Hiền/Thục/Huệ/Đức/Uyển có ý nghĩa từ vựng ngắn, không bịa điển tích, effect:null. Lần đầu thăng vào Tài nhân/Dung hoa/Sung Nghi/Tần/Quý phi (TEMP) phải ban ngẫu nhiên trong cùng transaction, không trùng phong hiệu hiện tại của chính nhân vật. Mới thay cũ, giữ lịch sử; được trùng người chơi khác/được gặp lại chữ trong lịch sử (TODO(spec): chỉ tránh chữ hiện tại, không áp độc quyền toàn máy chủ). Không ban bù mốc trước H1.
+- Ghi idempotent, world/account revision và khóa cùng thứ tự với3B/4A. Không trừ AP, không merit/tuần/quay sự kiện/penalty “quyền lớn bạc cạn” chỉ vì sửa soạn. Khi bệnh/khóa không sửa soạn; đọc vẫn được. Đọc lỗi dữ liệu H1 ghi log đã lọc/cảnh báo, không làm mất hồ sơ; ghi thất bại thì rollback.
+- `clearCharacterCosmetics(characterId)` chỉ nội bộ/service_role, xóa vật phẩm/trang bị/cung viện/phong hiệu của kiếp, gọi lại an toàn. Giữ hạn mua tài khoản và ledger/nhật ký cũ; chưa tạo endpoint tử vong. Chặng5 gọi trước khi tạo kiếp mới.
+- Hồ sơ có thanh phụ Thân phận/Y phục/Cung viện, không thêm tab mobile. Hiển thị phong hiệu+phẩm vị ở hồ sơ/Quan chế của chính mình/nhật ký/bảng tên cảnh. G1 vẫn client-only, giữ2D đầy đủ; hình nhân có áo kín bằng khối, chưa G2. Kiểu/màu bày biện hiện trong procedural và tint GLB tùy chọn, không sửa tài nguyên cache dùng chung. Cảnh giữ dưới100.000 tam giác và mức chất lượng G1.
+
 ## 7. HỆ SINH THÁI LIÊN KẾT 3 NHÁNH & QUY TẮC NGHIỆP VỤ CỐT TRUYỆN
 
 1. **Tương tác chéo Ngoại triều – Nội cung – Hậu cung ("Hiệu ứng Gợn sóng qua Rèm châu"):**

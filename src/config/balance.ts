@@ -12,10 +12,45 @@ export const UTC7_OFFSET_MS = 7 * 3_600_000;
 export const RESONANCE_STACKING = true; // TODO(spec): choose cumulative 15% per 200 cha.
 export const TREATMENTS_REQUIRED = 5; // TODO(spec): five paid treatment actions unlock illness.
 export const LOG_PAGE_SIZE = 20;
+/** TEMP — H1 prices, caps and rewards; never trust client-supplied prices. */
+export const HAREM_BALANCE = {
+  dailyPurchaseCap: 10,
+  prices: {
+    1: [20, 30, 40],
+    2: [60, 90, 120],
+    3: [200, 300, 400],
+    4: [600, 800, 1000],
+    5: [1500, 2200, 3000],
+  },
+  equipmentPctByTier: { 1: 5, 2: 8, 3: 10, 4: 12, 5: 15 },
+  equipmentCapPct: 25,
+  chamber: [
+    { level: 1, price: 0, minTier: 1 },
+    { level: 2, price: 80, minTier: 1 },
+    { level: 3, price: 200, minTier: 2 },
+    { level: 4, price: 500, minTier: 3 },
+    { level: 5, price: 1200, minTier: 4 },
+  ],
+  restPctPerLevel: 10,
+  restCapPct: 40,
+  socializePctPerLevel: 5,
+  socializeCapPct: 20,
+  decorPrices: [0, 25, 80],
+  decorTiers: [1, 1, 2],
+  titleMilestones: ["harem_12", "harem_10", "harem_8", "harem_5", "harem_3"],
+} as const;
 /** TEMP — deliberately centralized; no balance values in the processor. */
 export const APPLY_AP_COST = 1; // TEMP
 export const APPLY_DAILY_CAP = 2; // TEMP
 export const ACTION_BALANCE = {
+  COSMETIC: {
+    meritGain: 0,
+    apCost: 0,
+    silverCost: 0,
+    hpCost: 0,
+    gains: {},
+    dailyCap: 2147483647,
+  },
   RESOLVE_EVENT: {
     meritGain: 0,
     apCost: 0,

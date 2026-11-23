@@ -8,7 +8,9 @@ import { assessFrameWindow, QUALITY_CONFIG, type Quality } from "./quality";
 import { SCENE_TRIANGLE_BUDGET, type ModelManifest } from "./assets";
 import PalaceRoom from "./PalaceRoom";
 import { disposeModelDecoders } from "./ModelSlot";
+import type { CosmeticAppearance } from "@/types/cosmetics";
 interface Props {
+  appearance?: CosmeticAppearance;
   quality: Quality;
   visible: boolean;
   reducedMotion: boolean;
@@ -236,6 +238,7 @@ export default function PalaceCanvas(props: Props) {
         <LoadingProgress update={props.onProgress} />
         <Suspense fallback={null}>
           <PalaceRoom
+            appearance={props.appearance}
             available={manifest.available}
             onHotspot={props.onHotspot}
           />

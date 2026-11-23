@@ -16,6 +16,7 @@ import {
   absoluteGameDay,
 } from "./promotionEligibility";
 import { examProbability } from "./exam";
+import { cosmeticEffects } from "./cosmeticRules";
 import { randomInteger, type RandomSource } from "./characterGenerator";
 export function actionLockReason(
   state: RuntimeState,
@@ -82,13 +83,16 @@ export function processAction(
   id: string,
   random: RandomSource = Math.random,
 ): { state: RuntimeState; log: ActionLog } {
+  if (code === "COSMETIC")
+    throw new GameRuleError("Hãy sửa soạn tại Thượng phục cục hoặc Cung viện.");
   if (code === "RESOLVE_EVENT")
     throw new GameRuleError("Hãy chọn một phương án trong thẻ sự kiện.");
   const reason = actionLockReason(state, code);
   if (reason) throw new GameRuleError(reason);
   const c = state.character!;
   const action = ACTIONS[code];
-  const next = applyActionStats(c, action);
+  const effects = cosmeticEffects(state);
+  const next = applyActionStats(c, action, effects);
   const meritGained = Math.max(
     0,
     Math.min(action.meritGain, MERIT_DAILY_CAP - (state.meritUsedToday ?? 0)),
@@ -131,6 +135,9 @@ export function processAction(
     apSpent: action.apCost,
     apAfter,
     modifiers: {
+      ...(Object.values(effects).some((n) => n > 0)
+        ? { cosmeticEffects: effects }
+        : {}),
       ...getRiskModifiers(c),
       fatigueMultiplier: c.hp < 20 ? 0.5 : 1,
       resonanceMultiplier:

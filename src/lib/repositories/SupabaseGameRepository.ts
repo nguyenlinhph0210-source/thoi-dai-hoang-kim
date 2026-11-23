@@ -39,6 +39,12 @@ import {
 } from "@/lib/eventEngine";
 import { eventProposal } from "@/lib/eventPersistence";
 import type { EventWorld, ResolveEventInput } from "@/types/events";
+import type { CosmeticCommand, CharacterCosmetics } from "@/types/cosmetics";
+import {
+  cosmeticPolicy,
+  processCosmeticCommand,
+  parseCosmeticCommand,
+} from "@/lib/cosmeticEngine";
 export class SupabaseGameRepository implements GameRepository {
   constructor(private db: SupabaseClient) {}
   private failure(message: string): never {
@@ -226,6 +232,26 @@ export class SupabaseGameRepository implements GameRepository {
     const warnings = await this.trySeatRounds();
     const state = await this.snapshot(id);
     state.readWarnings = warnings;
+    if (state.character?.branch === "HAREM") {
+      try {
+        const cosmetics = await this.rpc("read_character_cosmetics", {
+          p_account_id: id,
+        });
+        if (cosmetics.error) this.failure(cosmetics.error.message);
+        state.cosmetics = cosmetics.data as CharacterCosmetics;
+        if (
+          !state.cosmetics ||
+          state.cosmetics.characterId !== state.character.id
+        )
+          throw new GameRuleError("Dữ liệu Hậu cung chưa đồng bộ.");
+      } catch (error) {
+        logSupabaseError("operation:readCharacterCosmetics", error);
+        state.cosmetics = null;
+        state.readWarnings.push(
+          "Chưa đồng bộ được y phục và cung viện. Hồ sơ của bạn vẫn được hiển thị.",
+        );
+      }
+    }
     try {
       state.seatBoard = await this.readSeatCounts();
     } catch {
@@ -405,6 +431,73 @@ export class SupabaseGameRepository implements GameRepository {
     });
     if (error) this.failure(error.message);
     return (data ?? []) as ActionLog[];
+  }
+  async cosmeticAction(
+    id: string,
+    command: CosmeticCommand,
+    revision: number,
+    key: string,
+  ): Promise<ActionResult> {
+    await this.expireEvents();
+    await this.runDueSeatRounds();
+    const payload = parseCosmeticCommand(command);
+    const replay = async () => {
+      const prior = await this.query(
+        "table:action_requests",
+        this.db
+          .from("action_requests")
+          .select("action_code,payload,result")
+          .eq("account_id", id)
+          .eq("idempotency_key", key)
+          .maybeSingle(),
+      );
+      if (prior.error) this.failure(prior.error.message);
+      if (
+        prior.data &&
+        (prior.data.action_code !== "COSMETIC" ||
+          JSON.stringify(parseCosmeticCommand(prior.data.payload)) !==
+            JSON.stringify(payload))
+      )
+        throw new GameRuleError("Mã yêu cầu đã dùng cho thao tác khác.");
+      return prior.data?.result as ActionResult | undefined;
+    };
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const prior = await replay();
+      if (prior) return prior;
+      const before = await this.loadWorld(),
+        state = before.states.find((s) => s.account.id === id);
+      if (!state) throw new GameRuleError("Không tìm thấy tài khoản.");
+      if (state.revision !== revision)
+        throw new GameRuleError("Dữ liệu đã thay đổi. Hãy đồng bộ lại.");
+      let computed: ReturnType<typeof processCosmeticCommand>;
+      try {
+        computed = processCosmeticCommand(state, command, randomUUID());
+      } catch (error) {
+        const raced = await replay();
+        if (raced) return raced;
+        throw error;
+      }
+      const saved = await this.rpc("commit_cosmetic_action", {
+        p_account_id: id,
+        p_revision: revision,
+        p_version: before.version,
+        p_key: key,
+        p_command: payload,
+        p_candidate: computed.state.cosmetics,
+        p_policy: cosmeticPolicy(state, command),
+        p_result: computed.result,
+      });
+      if (!saved.error && saved.data) return saved.data as ActionResult;
+      if (!/STALE_REVISION|RETRY_CLOCK/.test(saved.error?.message ?? ""))
+        this.failure(saved.error?.message ?? "Missing cosmetic result");
+    }
+    throw new GameRuleError("Có nhiều thao tác đồng thời. Vui lòng thử lại.");
+  }
+  async clearCharacterCosmetics(characterId: string): Promise<void> {
+    const saved = await this.rpc("clear_character_cosmetics", {
+      p_character_id: characterId,
+    });
+    if (saved.error) this.failure(saved.error.message);
   }
 }
 

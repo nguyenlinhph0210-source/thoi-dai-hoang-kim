@@ -4,6 +4,8 @@ import { useLayoutEffect, useRef } from "react";
 import { InstancedMesh, Object3D } from "three";
 import type { ThreeElements } from "@react-three/fiber";
 import ModelSlot from "./ModelSlot";
+import HaremFigure from "./HaremFigure";
+import type { CosmeticAppearance } from "@/types/cosmetics";
 const colors = {
   wood: "#523627",
   red: "#87372c",
@@ -48,7 +50,7 @@ function Planks({ offset, color }: { offset: number; color: string }) {
     </instancedMesh>
   );
 }
-function Screen() {
+function Screen({ color = colors.red }: { color?: string }) {
   return (
     <group>
       {[-1, 0, 1].map((x) => (
@@ -61,7 +63,7 @@ function Screen() {
           <Box
             position={[0, 1.12, 0.055]}
             scale={[0.57, 1.87, 0.025]}
-            color={colors.red}
+            color={color}
           />
           {[-0.22, 0, 0.22].map((dx) => (
             <Box
@@ -104,10 +106,10 @@ function Seat() {
     </group>
   );
 }
-function Table() {
+function Table({ color = colors.wood }: { color?: string }) {
   return (
     <group>
-      <Box position={[0, 0.67, 0]} scale={[1.3, 0.14, 0.8]} />
+      <Box color={color} position={[0, 0.67, 0]} scale={[1.3, 0.14, 0.8]} />
       {[-0.5, 0.5].flatMap((x) =>
         [-0.27, 0.27].map((z) => (
           <Box
@@ -128,12 +130,12 @@ function Table() {
     </group>
   );
 }
-function Vase() {
+function Vase({ color = "#b7c2b0" }: { color?: string }) {
   return (
     <group>
       <mesh position={[0, 0.28, 0]}>
         <cylinderGeometry args={[0.15, 0.24, 0.55, 10]} />
-        <meshStandardMaterial color="#b7c2b0" roughness={0.65} />
+        <meshStandardMaterial color={color} roughness={0.65} />
       </mesh>
       {[-0.16, 0, 0.16].map((x, i) => (
         <group key={x} position={[x, 0.7 + i * 0.05, 0]}>
@@ -151,7 +153,7 @@ function Vase() {
     </group>
   );
 }
-function Lantern() {
+function Lantern({ color = colors.red }: { color?: string }) {
   return (
     <group>
       <Box
@@ -162,7 +164,7 @@ function Lantern() {
       <mesh>
         <cylinderGeometry args={[0.25, 0.22, 0.5, 8]} />
         <meshStandardMaterial
-          color={colors.red}
+          color={color}
           emissive="#f29a39"
           emissiveIntensity={0.8}
           roughness={0.85}
@@ -203,9 +205,11 @@ function Hotspot({
 }
 /** Replace each slot with a GLB without changing layout, camera, lighting or HTML. */
 export default function PalaceRoom({
+  appearance: a,
   available,
   onHotspot,
 }: {
+  appearance?: CosmeticAppearance;
   available: string[];
   onHotspot: (text: string) => void;
 }) {
@@ -213,7 +217,7 @@ export default function PalaceRoom({
     <group>
       {/* Open front is intentional; the courtyard remains visible through the rear doorway. */}
       <Box position={[0, -0.16, 0]} scale={[8.4, 0.3, 6.2]} />
-      <Planks offset={0} color="#725039" />
+      <Planks offset={0} color={a && a.level >= 3 ? "#573a29" : "#725039"} />
       <Planks offset={1} color="#674630" />
       <Box
         position={[-3, 1.75, -3]}
@@ -286,9 +290,16 @@ export default function PalaceRoom({
           </mesh>
         </group>
       ))}
-      <group position={[-2, 0, -1.8]}>
-        <ModelSlot id="screen" available={available}>
-          <Screen />
+      <group
+        position={[-2, 0, -1.8]}
+        rotation={[0, (a?.decor.SCREEN.style ?? 0) * 0.09, 0]}
+      >
+        <ModelSlot
+          id="screen"
+          available={available}
+          color={a?.decor.SCREEN.color}
+        >
+          <Screen color={a?.decor.SCREEN.color} />
         </ModelSlot>
       </group>
       <group
@@ -304,17 +315,29 @@ export default function PalaceRoom({
       </group>
       <group
         position={[1.35, 0, -0.2]}
+        scale={[1 + (a?.decor.TABLE.style ?? 0) * 0.05, 1, 1]}
         onClick={(e) => {
           e.stopPropagation();
           onHotspot("Một chén trà ấm đang đợi bên cửa.");
         }}
       >
-        <ModelSlot id="table" available={available}>
-          <Table />
+        <ModelSlot
+          id="table"
+          available={available}
+          color={a?.decor.TABLE.color}
+        >
+          <Table color={a?.decor.TABLE.color} />
         </ModelSlot>
-        <group position={[0.35, 0.75, -0.15]}>
-          <ModelSlot id="vase" available={available}>
-            <Vase />
+        <group
+          position={[0.35, 0.75, -0.15]}
+          scale={1 + (a?.decor.PLANT.style ?? 0) * 0.15}
+        >
+          <ModelSlot
+            id="vase"
+            available={available}
+            color={a?.decor.PLANT.color}
+          >
+            <Vase color={a?.decor.PLANT.color} />
           </ModelSlot>
         </group>
       </group>
@@ -322,16 +345,69 @@ export default function PalaceRoom({
         <group
           key={x}
           position={[x, 2.65, -0.7]}
+          scale={1 + (a?.decor.LANTERN.style ?? 0) * 0.08}
           onClick={(e) => {
             e.stopPropagation();
             onHotspot("Ánh đèn son làm dịu một góc cung viện.");
           }}
         >
-          <ModelSlot id="lantern" available={available}>
-            <Lantern />
+          <ModelSlot
+            id="lantern"
+            available={available}
+            color={a?.decor.LANTERN.color}
+          >
+            <Lantern color={a?.decor.LANTERN.color} />
           </ModelSlot>
         </group>
       ))}
+      {a && (
+        <>
+          <HaremFigure appearance={a} />
+          <group position={[3.98, 1.85, -1.2]} rotation={[0, -Math.PI / 2, 0]}>
+            <Box scale={[1.25, 1.35, 0.05]} color={colors.gold} />
+            <Box
+              position={[0, 0, 0.04]}
+              scale={[1.1, 1.2, 0.03]}
+              color={a.decor.PAINTING.color}
+            />
+            {Array.from({ length: a.decor.PAINTING.style + 1 }, (_, i) => (
+              <mesh
+                key={i}
+                position={[(i - 0.5) * 0.28, 0, 0.07]}
+                rotation={[0, 0, 0.4]}
+              >
+                <planeGeometry args={[0.12, 0.6]} />
+                <meshBasicMaterial color="#ddd0a2" />
+              </mesh>
+            ))}
+          </group>
+          <group
+            position={[-0.75, 0.05, -1.5]}
+            scale={1 + a.decor.INCENSE.style * 0.12}
+          >
+            <mesh position={[0, 0.18, 0]} castShadow>
+              <cylinderGeometry args={[0.19, 0.14, 0.32, 8]} />
+              <meshStandardMaterial
+                color={a.decor.INCENSE.color}
+                metalness={0.3}
+                roughness={0.7}
+              />
+            </mesh>
+            <Box
+              position={[0, 0.48, 0]}
+              scale={[0.015, 0.35, 0.015]}
+              color={colors.wood}
+            />
+          </group>
+          {a.level >= 2 && (
+            <Box
+              position={[0, 3.2, 2.55]}
+              scale={[3 + (a.level - 2) * 0.5, 0.055, 0.04]}
+              color={colors.gold}
+            />
+          )}
+        </>
+      )}
       <Hotspot
         label="Bàn trà"
         text="Một chén trà ấm đang đợi bên cửa."

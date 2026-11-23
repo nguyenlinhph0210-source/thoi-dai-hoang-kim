@@ -2,6 +2,7 @@ import type { Character, CharacterStats, StatKey } from "@/types/game";
 import { clampStats as clampBase } from "./characterGenerator";
 import { RESONANCE_STACKING, TREATMENTS_REQUIRED } from "@/config/balance";
 import type { ActionDefinition } from "@/config/actions";
+import type { CosmeticEffects } from "@/types/cosmetics";
 export function clampStats(
   stats: CharacterStats,
   suspicionFloor = 0,
@@ -25,6 +26,7 @@ export function applyGain(
   c: CharacterStats,
   gains: Partial<CharacterStats>,
   type: ActionDefinition["type"] = "NORMAL",
+  gainPercent: Partial<Record<StatKey, number>> = {},
 ): CharacterStats {
   const next = { ...c };
   for (const stat of Object.keys(gains) as StatKey[]) {
@@ -38,7 +40,10 @@ export function applyGain(
             : Number(c.cha >= 200)
           : 0;
       // Integer percentages avoid 100 * 1.15 rounding down to 114 in JS.
-      gain = Math.floor((gain * (100 + 15 * stacks)) / (c.hp < 20 ? 200 : 100));
+      gain = Math.floor(
+        (gain * (100 + 15 * stacks) * (100 + (gainPercent[stat] ?? 0))) /
+          ((c.hp < 20 ? 200 : 100) * 100),
+      );
     }
     next[stat] += gain;
   }
@@ -47,6 +52,7 @@ export function applyGain(
 export function applyActionStats(
   character: Character,
   action: ActionDefinition,
+  effects?: CosmeticEffects,
 ): Character {
   const paid = {
     ...character,
@@ -54,7 +60,18 @@ export function applyActionStats(
     hp: character.hp - action.hpCost,
   };
   // Fatigue/resonance use the state at the beginning of the action.
-  let stats = applyGain(character, action.gains, action.type);
+  const gainPercent = !effects
+    ? {}
+    : action.code === "AUDIENCE"
+      ? { fav: effects.audienceFavPct }
+      : action.code === "ETIQUETTE"
+        ? { cha: effects.etiquetteGainPct }
+        : action.code === "REST"
+          ? { hp: effects.restHpPct }
+          : action.code === "SOCIALIZE"
+            ? { rep: effects.socializeRepPct }
+            : {};
+  let stats = applyGain(character, action.gains, action.type, gainPercent);
   stats.characterSilver -= action.silverCost;
   stats.hp -= action.hpCost;
   let suspicionFloor = character.suspicionFloor;

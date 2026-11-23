@@ -23,7 +23,8 @@ async function fixture(
     | "snapshot"
     | "transport"
     | "table"
-    | "expiry",
+    | "expiry"
+    | "cosmetics",
 ) {
   const memory = new InMemoryGameRepository();
   const id = randomUUID();
@@ -31,7 +32,7 @@ async function fixture(
   let state = await memory.readState(id);
   state = await memory.setup(
     id,
-    { type: "BEGIN", branch: "CIVIL" },
+    { type: "BEGIN", branch: fault === "cosmetics" ? "HAREM" : "CIVIL" },
     state.revision,
     randomUUID(),
   );
@@ -71,7 +72,11 @@ async function fixture(
       (fault === "snapshot" && name === "runtime_snapshot") ||
       (fault === "table" && name === "action_requests") ||
       (fault === "expiry" && name === "commit_event_world");
-    if (failed)
+    if (
+      failed ||
+      (fault === "cosmetics" &&
+        ["read_character_cosmetics", "seat_world_load"].includes(name))
+    )
       return new Response(JSON.stringify(postgres), {
         status: 400,
         headers: { "Content-Type": "application/json" },
@@ -121,6 +126,34 @@ async function fixture(
   );
   return { repo, id, calls };
 }
+test("H1 cosmetic read failure logs a safe RPC diagnostic and preserves the profile; cosmetic writes stay strict", async (t) => {
+  const spy = t.mock.method(console, "error", () => {}),
+    { repo, id, calls } = await fixture("cosmetics");
+  const state = await repo.readState(id),
+    view = gameView(state);
+  assert.equal(state.character!.status, "ACTIVE");
+  assert.equal(view.cosmetics, null);
+  assert.equal(state.account.actionPoints, 10);
+  assert(state.readWarnings!.some((text) => text.includes("y phục")));
+  const html = renderToStaticMarkup(
+    createElement(ReadWarnings, { warnings: view.readWarnings }),
+  );
+  assert(html.includes("Hồ sơ của bạn vẫn"));
+  await assert.rejects(
+    repo.cosmeticAction(
+      id,
+      { type: "BUY_ITEM", code: "OUTFIT_1_1" },
+      state.revision,
+      randomUUID(),
+    ),
+  );
+  assert(!calls.includes("commit_cosmetic_action"));
+  const output = JSON.stringify(spy.mock.calls.map((c) => c.arguments));
+  assert(output.includes("rpc:read_character_cosmetics"));
+  assert(!output.includes("private@example.test"));
+  assert(!output.includes("sb_secret_do_not_log"));
+  assert(!output.includes(id));
+});
 for (const fault of ["load", "round", "transport"] as const)
   test(`read snapshot/seat board/journal survive ${fault} failure; warning renders and source is logged; writes stay strict`, async (t) => {
     const spy = t.mock.method(console, "error", () => {}),

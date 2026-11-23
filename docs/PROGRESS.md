@@ -1,3 +1,91 @@
+# H1 — Y phục, cung viện, phong hiệu Hậu cung
+
+## Đã làm
+
+- Danh mục có kiểu/kiểm tra khi nạp trong `src/content/harem.ts`:12 y phục (>=2 mỗi tầng),10 trâm,8 trang sức,18 kiểu/sáu ô bày biện,5 cấp viện và9 chữ phong hiệu. Branches/fictional:true/SAMPLE_DRAFT; không tên người thật/NPC, ý nghĩa phong hiệu chỉ từ vựng, không bịa điển tích.
+- Engine mua/mặc/tháo/nâng cấp/mua decor/bày: sở hữu theo kiếp, một món/ô, minTier theo phẩm hiện tại; giá server tra từ config. Không AP, không đổi chỉ số gốc khi sửa soạn; account cap10/ngày UTC+7 gồm gear+decor, không làm mới khi clear/đổi nhân vật.
+- Hiệu ứng trang bị cộng dồn trần25% mỗi AUDIENCE/ETIQUETTE, cung viện tăng REST/SOCIALIZE trần40%/20%. Tính trên thưởng dương qua engine cũ, sau cộng hưởng và trước clamp; floor một lần sau toàn bộ hệ số/suy kiệt. Thăng phẩm vẫn đánh giá base stats. Log có cosmeticEffects.
+- Phong hiệu ban trong engine promote và RPC chốt ghế cùng transaction: đúng phẩm mốc lần đầu, loại chữ hiện tại, giữ thứ tự lịch sử, không API reroll. Thiếu grant/ghi title lỗi thì rollback cả rank/AP; test tiêm lỗi xác nhận. Hiển thị danh xưng ở Hồ sơ, Quan chế của chính mình, nhật ký và bảng tên cảnh.
+- Migration0008 transactional/rerunnable, năm bảng RLS ngay, RPC/alias nhạy cảm chỉ service_role; không đổi schema/migration cũ. Khóa/CAS cùng thế giới 3B/4A; đổi đồ làm snapshot thưởng cũ stale. SDK Supabase được thử qua transport nối PGlite, cùng ledger idempotent dùng chung action_requests; không tách thanh toán/ghi lịch sử.
+- Hồ sơ có thanh phụ Thân phận/Y phục/Cung viện, giữ bốn tab mobile; mua/trang bị có khóa và giải thích; retry lưu UUID+lệnh+revision theo tài khoản/kiếp. Nhánh khác placeholder Sắp ra mắt. Đọc lỗi dữ liệu H1 vẫn dựng hồ sơ + cảnh báo/log đã lọc, ghi không nuốt lỗi.
+- G1 có hình nhân áo kín low-poly, hoa văn/màu theo đồ đang mặc, trâm khối nhỏ và điểm trang sức; sáu kiểu bày biện/cấp viện hiện trên scene. GLB tùy chọn được tint qua material clone, không sửa cache chung. 2D có thẻ danh xưng/đồ/cấp/kiểu, chơi đầy đủ.
+- `clearCharacterCosmetics`/RPC nội bộ xóa đồ, trang bị, viện, lịch sử phong hiệu của kiếp; gọi lại không đổi revision nếu đã trống. Giữ tài khoản, hạn mua, ledger và nhật ký đã ghi. Chặng5 mới gọi khi kết thúc kiếp, không endpoint clear/tử vong cho client.
+
+## Chưa làm / giới hạn
+
+G2 nhân vật/trang phục chi tiết, G3 nhiều cảnh, NPC, kịch bản, hệ thống thỉnh an mới, thuộc hạ, yến tiệc, tặng quà, tiền thật/cửa hàng trả phí không thuộc H1. Nhãn AUDIENCE/Thỉnh an mẫu có sẵn của Chặng2 giữ nguyên. Chưa đo trên điện thoại thật, pin/nhiệt/GPU memory. Loader nén G1 vẫn chưa có fixture Draco/Meshopt/KTX2 nén thật.
+
+**chưa kiểm chứng trên Supabase thật**: ba biến Supabase chưa có trong môi trường. Đã chạy migration/RPC/RLS bằng PGlite với auth/role stub, kể cả SDK qua transport giả lập; không coi đó là PostgREST/pg-safeupdate/Auth thật hoặc tranh chấp PostgreSQL nhiều kết nối.
+
+## Giả định / TODO(spec)
+
+1. H1 chỉ HAREM. Các mốc ban phong chỉ khi thăng vào mốc sau triển khai; không suy diễn/ban bù lịch sử cũ hoặc vì khởi đầu/chuyển nhánh. Vào Hậu cung mới có bộ đồ trống/viện1; không mang đồ của kiếp trước.
+2. “Không trùng phong hiệu đang có” nghĩa không trùng chữ hiện tại của chính nhân vật, không độc quyền toàn máy chủ; chữ lịch sử có thể xuất hiện lại. Có tối đa một grant mỗi character/milestone, thứ tự giữ bền vững, effect:null.
+3. Trang bị chỉ tăng thưởng của mã AUDIENCE/ETIQUETTE, không áp cho lựa chọn sự kiện4A có type AUDIENCE. Cộng hưởng → phần trăm → suy kiệt, floor một lần rồi clamp, giữ quy tắc nhân quả cũ. Tăng kiếm được từ hành động sau đó trở thành base stats bình thường; việc mặc/tháo không tự đổi chúng.
+4. Sửa soạn miễn AP nên không kích hoạt first-week mark/RNG, merit hoặc “quyền lớn bạc cạn” chỉ do mua. Bệnh nặng/khóa/mùa kết thúc chặn mọi sửa soạn, vẫn đọc được; khớp quy tắc chỉ Điều trị khi ill.
+5. Cap10 tính cả mua đồ và mua decor. Nâng cấp/mặc/tháo/bày miễn phí lượt mua. Mua không tự mặc/bày; phải chọn thao tác tương ứng. Kiểu0 miễn phí/sở hữu mặc định, style1 minTier1/giá25, style2 minTier2/giá80 TEMP.
+6. Mốc/phần trăm/giá do server gửi từ config trong proposal service_role. SQL kiểm trạng thái/CAS/quyền sở hữu/tài nguyên/log và bắt buộc grant khi đạt mốc; client không gửi proposal/giá/hiệu ứng. Điều chỉnh TEMP không cần sửa migration cũ hoặc thêm bản sao số TEMP trong SQL.
+7. Mã catalog đã phát hành giữ ổn định vì ownership/history lưu code. Giá dùng lúc mua, hiệu ứng tra cấu hình hiện tại lúc hành động; chỉnh balance không sửa thưởng/base stats đã ghi trước đó. Không có bán lại, mua trùng, vượt lễ chế hoặc reroll title.
+8. Retry giữ lệnh/key/revision cũ, không tự đổi mục tiêu khi stale. SessionStorage bị chặn thì retry còn trong tab, không bảo đảm giữ qua reload bị chặn storage. Máy chủ vẫn chống mua trùng/số dư âm. Clear giữ audit log/account usage, không hoàn bạc và không đưa quyền clear cho client.
+9. Giá Sơ cấp20–40 và WORK15/cap8 đã chốt khiến món đầu mua được trong ngày hoạt động đầu. “1–2 ngày” được hiểu là số ngày hoạt động/ceil ngân sách, không ép chờ24h; không đổi WORK/giá ra ngoài khoảng để tạo cổng thời gian. Có bạc khởi đầu thì có thể mua sớm hơn.
+10. Giữ kiến trúc global lock/world snapshot từ3B/4A; batching/khóa hẹp cho tải lớn chưa thuộc H1. Read H1 lỗi là metadata chưa khả dụng, không bịa sở hữu hoặc cho ghi dựa trên dữ liệu fallback. Tất cả cảnh/nhãn chỉ dùng DTO của chính người chơi.
+
+## Số liệu TEMP
+
+Tại `HAREM_BALANCE` trong `src/config/balance.ts`; kiểu/nội dung/màu/hoa văn ở `src/content/harem.ts`.
+
+| Mục | Giá trị |
+| --- | --- |
+| Giá gear theo tầng | 20/30/40;60/90/120;200/300/400;600/800/1000;1500/2200/3000 |
+| Hệ số từng món mẫu, cả hai loại | 5/8/10/12/15% theo tầng; cộng dồn chịu trần25% |
+| Nâng cấp2/3/4/5 | 80/200/500/1200 bạc; minTier1/2/3/4 |
+| Decor style0/1/2 | 0/25/80 bạc; minTier1/1/2 |
+| Mốc phong hiệu | harem_12 Tài nhân;harem_10 Dung hoa;harem_8 Sung Nghi;harem_5 Tần;harem_3 Quý phi |
+
+Cap mua10/ngày, trần gear25% mỗi loại, REST10%/cấp tối đa40%, SOCIALIZE5%/cấp tối đa20% là quyết định H1, cũng đặt tập trung trong balance. Hiệu ứng áp thưởng nguyên nên một món+5% có thể chưa tăng thêm một điểm cho thưởng8; không tự làm tròn lên.
+
+## Ngày thực để kiếm đủ bạc
+
+Tính từ0 bạc, không tính bạc khởi đầu/thưởng/sự kiện; WORK=15/lần, cap8/ngày. Lý thuyết cap=120/ngày;
+ngân sách tham chiếu bền hơn là6 WORK+4 REST với10 AP/ngày, khoảng90 bạc/ngày khi khỏe và xen nghỉ để không suy kiệt.
+Không phải cam kết thu nhập: còn chi phí hành động, điều trị, fatigue/HP và lựa chọn khác. Dùng ceil(price/budget), không phải thời gian bắt buộc chờ.
+
+| Tầng | Khoảng giá | Số WORK | Ngày ở120/ngày (cap) | Ngày ở90/ngày (tham chiếu) |
+| --- | ---: | ---: | ---: | ---: |
+| Sơ cấp | 20–40 | 2–3 | 1 | 1 |
+| Trung thấp | 60–120 | 4–8 | 1 | 1–2 |
+| Trung cao | 200–400 | 14–27 | 2–4 | 3–5 |
+| Cao cấp | 600–1000 | 40–67 | 5–9 | 7–12 |
+| Tối cao | 1500–3000 | 100–200 | 13–25 | 17–34 |
+
+## Việc người dùng phải làm
+
+1. Đã ở4A/G1 và đã chạy0007: chạy **supabase/migrations/0008_harem_cosmetics.sql** trước code H1. Chạy lại an toàn, không reset số dư/AP/rank/R/đồ/title/cap đã ghi. Không chạy lại migration cũ sau0008.
+2. Dự án mới: schema.sql một lần →0002 riêng →0003→0004→0005→0006→0007→0008. Giữ ba biến Supabase cũ; không env, thư viện hay cron mới. Không gửi service key vào chat/client/log.
+3. Rà và chỉnh SAMPLE_DRAFT/TEMP tại nguồn, giữ code ổn định. Làm checklist Supabase thật bên dưới; kiểm thử Android/iOS tầm trung và2D trước phát hành. Giữ quy trình GLB/credits/check:models của G1.
+
+## Checklist Supabase thật H1
+
+- [ ] Backup dự án test; chạy0008 hai lần. Kiểm năm bảng RLS, alias/RPC anon/auth không EXECUTE, không SELECT raw của tài khoản khác. Chạy qua PostgREST/Vercel, không chỉ SQL Editor.
+- [ ] Hai tài khoản HAREM/CIVIL: chỉ HAREM mua/mặc/nâng/bày; fake account/branch/price/effect/slot không thay giá/quyền. Thử phẩm thiếu/ngân lượng thiếu/sở hữu rồi/bệnh/khóa/mùa ENDED, không debit/log phần dở dang.
+- [ ] Cùng UUID gửi đôi/mất phản hồi/reload trả đúng log cũ, mua một lần; hai UUID đồng thời không âm bạc, stale revision được chặn. Tài khoản đủ10 lần mua gear/decor thì chặn11; clear/đổi nhân vật không reset, qua00:00 UTC+7 mới reset.
+- [ ] Một món mỗi ô, tháo đúng ô, không mặc món vượt tier. Base stats/R/ngưỡng không đổi khi mặc/tháo; AUDIENCE/ETIQUETTE/REST/SOCIALIZE đúng bonus/cap/fatigue/resonance/clamp và modifiers. Snapshot cũ bị từ chối sau khi đổi đồ.
+- [ ] Nâng viện từng cấp/giá/tier; decor mặc định miễn phí và style đã mua mới bày. Profile/2D/3D phản ánh thay đổi sau reload/thiết bị khác, không AP/merit/roll do sửa soạn.
+- [ ] Thăng vào năm mốc: grant trong cùng transaction, không chữ hiện tại, một grant/mốc, lịch sử có thứ tự. Tiêm lỗi ghi title có kiểm soát ở DB test: rollback AP/rank/ghế/history. Không có ban bù/reroll API.
+- [ ] Clear nội bộ trên nhân vật test xóa đúng đồ/viện/title, giữ cap/ledger/log; gọi lại an toàn. Không endpoint client clear/tử vong.
+- [ ] Cho lỗi đọc H1: profile/AP vẫn hiện, cảnh báo nhẹ và log chỉ tên nguồn/code/thông điệp hằng đã duyệt, không key/token/PII/row. Ghi khi lỗi phải thất bại hoàn toàn.
+- [ ] Network/DOM không raw suspicion/suspicionFloor hoặc người chơi khác. Login/2D không chunk renderer; low/medium không bóng, high mềm, hidden/reduced-motion/demand như G1. Thử pin/nhiệt/memory thật, model nén nếu bổ sung.
+
+## Kiểm chứng / số đo H1
+
+- `npm run lint`, `npm run typecheck`, `npm run check:models`, production build: đạt. **137 test logic/SQL đạt**, gồm toàn bộ hồi quy, H1, RLS/WHERE guard, SDK qua transport nối PGlite. Migration0008 chạy lại trước/sau khi có giao dịch không reset dữ liệu; test lỗi title chứng minh rollback rank/AP.
+- **21 Playwright đạt** với InMemory (18 luồng cũ +3 H1). Sau hoàn thiện tint/DTO/validation, chạy lại riêng8 test đồ họa/H1 đều đạt. Không có API seed/test production; fixture GLB/UI chỉ trong test.
+- Scene procedural hiện tại: **1.758 tam giác mặc định; 1.862 tam giác cấu hình tối đa** (viện5, sáu style2, đủ ba món/hoa văn). Đo renderer thật ở dev bằng fixture hiển thị công khai của chính nhân vật; fixture không thay dữ liệu/promotion ở server. Không phân phối model ngoài; runtime vẫn chặn tổng>=100.000 tam giác.
+- Chromium headless Linux/ANGLE SwiftShader, viewport390×844/DPR1/reduced-motion, một cửa sổ2s sau warm-up: max fixture Thấp56.5FPS/103draw calls/1.862tam giác vẽ; Trung bình59.2FPS/103calls/1.862; Cao35.5FPS/180calls/3.182tam giác vẽ gồm shadow pass. Mặc định94calls. Đây là một lượt đo, không benchmark thống kê hay hiệu năng điện thoại thật; lúc idle chỉ dùng frame counter, không diễn giải FPS cached/resize thành FPS idle.
+- Chunk renderer production: **274.1KiB gzip tổng3 chunk** (~1003.1KiB raw), đo bằng measure:3d; không shared React/Next hoặc GLB/decoder chưa phân phối. G1 fallback, giới hạn DPR/shadow, reduced-motion và pause giữ nguyên. Không đo pin/nhiệt/GPU memory điện thoại.
+
+---
+
 # G1 — Nền tảng đồ họa 3D (prototype)
 
 ## Đã làm

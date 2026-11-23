@@ -8,11 +8,13 @@ export default function SeatBoard({
   branch,
   currentRankId,
   targetRankId,
+  ownTitle,
 }: {
   rows: SeatBoardRow[];
   branch: Branch;
   currentRankId: string;
   targetRankId: string | null;
+  ownTitle?: string;
 }) {
   const [selected, setSelected] = useState(branch);
   useEffect(() => setSelected(branch), [branch]);
@@ -66,7 +68,9 @@ export default function SeatBoard({
                     }
                   >
                     <th scope="row">
-                      {r.name}
+                      {r.rankId === currentRankId && ownTitle
+                        ? ownTitle
+                        : r.name}
                       {r.rankId === currentRankId && <small>Hiện tại</small>}
                       {r.rankId === targetRankId && <small>Mục tiêu</small>}
                       {r.starting && <small>Khởi đầu · không chiếm ghế</small>}

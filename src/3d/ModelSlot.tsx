@@ -1,7 +1,13 @@
 "use client";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useLoader, useThree } from "@react-three/fiber";
-import { InstancedMesh, Mesh, Texture, type WebGLRenderer } from "three";
+import {
+  InstancedMesh,
+  Mesh,
+  MeshStandardMaterial,
+  Texture,
+  type WebGLRenderer,
+} from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
@@ -19,7 +25,7 @@ export function disposeModelDecoders(gl: WebGLRenderer) {
   resources?.ktx2?.dispose();
   decoders.delete(gl);
 }
-function LoadedModel({ asset }: { asset: ModelAsset }) {
+function LoadedModel({ asset, color }: { asset: ModelAsset; color?: string }) {
   const gl = useThree((state) => state.gl);
   const model = useLoader(GLTFLoader, asset.path, (loader) => {
     const resources = decoders.get(gl) ?? {};
@@ -52,6 +58,18 @@ function LoadedModel({ asset }: { asset: ModelAsset }) {
         3;
       object.castShadow = true;
       object.receiveShadow = true;
+      if (color) {
+        const materials = (
+          Array.isArray(object.material) ? object.material : [object.material]
+        ).map((material) => {
+          const clone = material.clone();
+          if (clone instanceof MeshStandardMaterial) clone.color.set(color);
+          return clone;
+        });
+        object.material = Array.isArray(object.material)
+          ? materials
+          : materials[0];
+      }
       for (const material of Array.isArray(object.material)
         ? object.material
         : [object.material]) {
@@ -70,21 +88,36 @@ function LoadedModel({ asset }: { asset: ModelAsset }) {
     if (triangles > asset.maxTriangles)
       throw new Error("MODEL_TRIANGLE_BUDGET");
     return clone;
-  }, [asset, model]);
+  }, [asset, model, color]);
+  useEffect(
+    () => () => {
+      if (color)
+        scene.traverse((object) => {
+          if (object instanceof Mesh)
+            for (const material of Array.isArray(object.material)
+              ? object.material
+              : [object.material])
+              material.dispose();
+        });
+    },
+    [scene, color],
+  );
   return <primitive object={scene} dispose={null} />;
 }
 export default function ModelSlot({
   id,
   available,
   children,
+  color,
 }: {
   id: string;
   available: string[];
   children: ReactNode;
+  color?: string;
 }) {
   const asset = MODEL_ASSETS.find((model) => model.id === id);
   return asset && available.includes(id) ? (
-    <LoadedModel asset={asset} />
+    <LoadedModel asset={asset} color={color} />
   ) : (
     <>{children}</>
   );

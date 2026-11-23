@@ -3,6 +3,13 @@ import type { ActionCode } from "@/config/actions";
 import type { RuntimeState, ActionResult, ActionLog } from "@/types/runtime";
 import type { Season } from "@/types/game";
 export interface GameRepository {
+  cosmeticAction(
+    accountId: string,
+    command: import("@/types/cosmetics").CosmeticCommand,
+    revision: number,
+    key: string,
+  ): Promise<ActionResult>;
+  clearCharacterCosmetics(characterId: string): Promise<void>;
   readState(accountId: string): Promise<RuntimeState>;
   setup(
     accountId: string,

@@ -1,6 +1,7 @@
 import type { SeatChange, SeatWorld } from "@/types/seats";
 import { ACTIONS } from "@/config/actions";
-import { MS_PER_GAME_DAY } from "@/config/balance";
+import { MS_PER_GAME_DAY, HAREM_BALANCE } from "@/config/balance";
+import { HONORIFICS } from "@/content/harem";
 import { utc7Date } from "./ap";
 /** Send only changed rows. Raw worlds and scores must remain server-private. */
 export function seatProposal(change: SeatChange) {
@@ -14,6 +15,10 @@ export function seatProposal(change: SeatChange) {
     return next.filter((r) => index.get(key(r)) !== JSON.stringify(r));
   }
   return {
+    haremTitlePolicy: {
+      milestones: HAREM_BALANCE.titleMilestones,
+      codes: HONORIFICS.map((t) => t.code),
+    },
     seasonId: after.season.id,
     lastRound: after.lastRound,
     gameDay: Math.floor(
@@ -32,6 +37,7 @@ export function seatProposal(change: SeatChange) {
       .map((s) => ({
         account: s.account,
         character: s.character,
+        cosmetics: s.cosmetics ?? null,
         revision: s.revision,
         previousRevision: before.states.find(
           (b) => b.account.id === s.account.id,
